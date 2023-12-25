@@ -1,1 +1,5 @@
 venv/
+__pycache__/
+ROADMAP.txt
+wallets.json
+config.json

@@ -1,1 +1,3 @@
 InquirerPy
+jupiter-python-sdk
+pyfiglet
