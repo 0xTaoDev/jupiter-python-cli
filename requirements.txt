@@ -2,3 +2,5 @@ InquirerPy
 jupiter-python-sdk
 pyfiglet
 python-dotenv
+pandas
+tabulate
