@@ -6,6 +6,7 @@ import time
 import re
 import httpx
 import asyncio
+import datetime
 
 from dotenv import load_dotenv
 
@@ -31,6 +32,8 @@ from jupiter_python_sdk.jupiter import Jupiter
 
 
 import functions as f
+import constants as c
+
 
 class Config_CLI():
     
@@ -65,35 +68,38 @@ class Config_CLI():
     @staticmethod
     async def prompt_rpc_url():
         """Asks the user the RPC URL endpoint to be used."""
-        rpc_url = await inquirer.text(message="Enter your RPC URL endpoint:").execute_async()
-        confirm = await inquirer.select(message="Confirm?", choices=["Yes", "No"]).execute_async()
+        rpc_url = await inquirer.text(message="Enter your RPC URL endpoint or press ENTER:").execute_async()
         # rpc_url = os.getenv('RPC_URL')
         # confirm = "Yes"
-        if confirm == "Yes":
-            if rpc_url.endswith("/"):
-                rpc_url = rpc_url[:-1]
+        
+        if rpc_url != "":
+            confirm = await inquirer.select(message="Confirm?", choices=["Yes", "No"]).execute_async()
+            if confirm == "Yes":
+                if rpc_url.endswith("/"):
+                    rpc_url = rpc_url[:-1]
+                    
+                test_client = AsyncClient(endpoint=rpc_url)
                 
-            test_client = AsyncClient(endpoint=rpc_url)
+                if not await test_client.is_connected():
+                    print(f"{c.RED}! Connection to RPC failed. Please enter a valid RPC.{c.RESET}")
+                    await Config_CLI.prompt_rpc_url()
+                    return
+                else:
+                    config_data = await Config_CLI.get_config_data()
+                    config_data['RPC_URL'] = rpc_url
+                    await Config_CLI.edit_config_file(config_data=config_data)
+                    return
             
-            if not await test_client.is_connected():
-                print("! Connection to RPC failed. Please enter a valid RPC.")
+            elif confirm == "No":
                 await Config_CLI.prompt_rpc_url()
                 return
-            else:
-                config_data = await Config_CLI.get_config_data()
-                config_data['RPC_URL'] = rpc_url
-                await Config_CLI.edit_config_file(config_data=config_data)
-                return
-        
-        elif confirm == "No":
-            await Config_CLI.prompt_rpc_url()
-            return
+        return
             
     @staticmethod
     async def main_menu():
-        """Main menu for CLI configuration."""
+        """Main menu for CLI settings."""
         f.display_logo()
-        print("[CLI CONFIGURATION]\n")
+        print("[CLI SETTINGS]\n")
         config_data = await Config_CLI.get_config_data()
         
         # print(f"CLI collect fees (0.005%): {'Yes' if config_data['COLLECT_FEES'] else 'No'}") # TBD
@@ -102,7 +108,7 @@ class Config_CLI():
         start_time = time.time()
         await client.is_connected()
         end_time = time.time()
-        print(f"RPC URL Endpoint: {config_data['RPC_URL']} ({round(end_time - start_time, 2)} ms)")
+        print(f"RPC URL Endpoint: {config_data['RPC_URL']} {c.GREEN}({round(end_time - start_time, 2)} ms){c.RESET}")
         
         print()
         
@@ -123,15 +129,14 @@ class Config_CLI():
 
 
 class Wallet():
-    def __init__(self, private_key: str):
+    def __init__(self, rpc_url: str, private_key: str):
         self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
+        self.client = AsyncClient(endpoint=rpc_url)
         
     async def get_token_balance(self, token_mint_account: str) -> dict:
-        config_data = await Config_CLI.get_config_data()
-        client = AsyncClient(endpoint=config_data['RPC_URL'])
         
         if token_mint_account == self.wallet.pubkey().__str__():
-            get_token_balance = await client.get_balance(pubkey=self.wallet.pubkey())
+            get_token_balance = await self.client.get_balance(pubkey=self.wallet.pubkey())
             token_balance = {
                 'decimals': 9,
                 'balance': {
@@ -140,7 +145,7 @@ class Wallet():
                 }
             }
         else:
-            get_token_balance = await client.get_token_account_balance(pubkey=token_mint_account)
+            get_token_balance = await self.client.get_token_account_balance(pubkey=token_mint_account)
             try:
                 token_balance = {
                     'decimals': int(get_token_balance.value.decimals),
@@ -158,46 +163,54 @@ class Wallet():
         token_mint_account = get_associated_token_address(owner=self.wallet.pubkey(), mint=Pubkey.from_string(token_mint))
         return token_mint_account
     
-    async def sign_send_transaction(self, transaction_data: str, signatures: list=None):
-        config_data = await Config_CLI.get_config_data()
-        client = AsyncClient(endpoint=config_data['RPC_URL'])
-        
+    async def sign_send_transaction(self, transaction_data: str, signatures_list: list=None):
+        signatures = []
+
         raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
         signature = self.wallet.sign_message(message.to_bytes_versioned(raw_transaction.message))
-        signed_txn = VersionedTransaction.populate(raw_transaction.message, [signature])
-        opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
-        result = await client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
-        transaction_id = json.loads(result.to_json())['result']
-        print(f"Transaction sent: https://explorer.solana.com/tx/{transaction_id}")
+        signatures.append(signature)
+        if signatures_list:
+            for signature in signatures_list:
+                signatures.append(signature)
+        signed_txn = VersionedTransaction.populate(raw_transaction.message, signatures)
+        opts = TxOpts(skip_preflight=True, preflight_commitment=Processed)
+        
+        # print(signatures, transaction_data)
+        # input()
+        
+        result = await self.client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
+        transaction_hash = json.loads(result.to_json())['result']
+        print(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_hash}{c.RESET}")
+        input("\nPress ENTER to continue.")
+        # await self.get_status_transaction(transaction_hash=transaction_hash) # TBD
+        return
         
     async def get_status_transaction(self, transaction_hash: str):
-        config_data = await Config_CLI.get_config_data()
-        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        print("Checking transaction status...")
+        get_transaction_details = await self.client.confirm_transaction(tx_sig=Signature.from_string(transaction_hash), sleep_seconds=1)
+        transaction_status = get_transaction_details.value[0].err
         
-        while True:
-            transaction_status = await client.get_transaction(tx_sig=Signature.from_string(transaction_hash), max_supported_transaction_version=0)
-            input(transaction_status)
+        if transaction_status is None:
+            print("Transaction SUCCESS!")
+        else:
+            print(f"{c.RED}Transaction FAILED!{c.RESET}")
+            
+        input("\nPress ENTER to continue")
+        return
+            
     
 class Jupiter_CLI(Wallet):
     
-    def __init__(self, private_key: str) -> None:
-        super().__init__(private_key=private_key)
+    def __init__(self, rpc_url: str, private_key: str) -> None:
+        super().__init__(rpc_url=rpc_url, private_key=private_key)
     
     async def main_menu(self):
         """Main menu for Jupiter CLI."""
         f.display_logo()
         print("[JUPITER CLI] [MAIN MENU]")
         await Wallets_CLI.display_selected_wallet()
+        self.jupiter = Jupiter(async_client=self.client, keypair=self.wallet)
         
-        config_data = await Config_CLI.get_config_data()
-        client = AsyncClient(endpoint=config_data['RPC_URL'])
-        self.jupiter = Jupiter(async_client=client, keypair=self.wallet)
-        
-        #---------------------------------------------------------------------------
-        #                            SWAP FUNCTION ALMOST FINISHED: ADD CHECK AMOUNT TOKEN TO SELL OWNED + CHECK TRANSATION STATUS
-        #---------------------------------------------------------------------------
-        # await self.get_status_transaction("4WP3da4QK5tg5Ff7RLjA51yYEZSMLLTcip4tQWvEeyEZrU7XUz2T4bU67NqgxSw9T4ZoHXQpCwx2nkw31YSnU4F2")
-
         jupiter_cli_prompt_main_menu = await inquirer.select(message="Select menu:", choices=[
             "Swap",
             "Limit Order",
@@ -213,6 +226,9 @@ class Jupiter_CLI(Wallet):
             await self.swap_menu()
             await self.main_menu()
             return
+        elif jupiter_cli_prompt_main_menu == "Limit Order":
+            await self.limit_order_menu()
+            return
         elif jupiter_cli_prompt_main_menu == "Change wallet":
             select_wallet = await Wallets_CLI.prompt_select_wallet()
             if select_wallet:
@@ -222,58 +238,56 @@ class Jupiter_CLI(Wallet):
         elif jupiter_cli_prompt_main_menu == "Back to main menu":
             await Main_CLI.main_menu()
             return
-        
-    async def swap_menu(self):
-        """Jupiter CLI - SWAP MENU."""
-        f.display_logo()
-        print("[JUPITER CLI] [SWAP MENU]")
-        print()
-        
+    
+    async def select_tokens(self):
+        """Prompts user to select tokens & amount to sell."""
         tokens_list = await Jupiter.get_tokens_list(list_type="all")
-        choices = ["SOL"]
+        choices = []
         for token in tokens_list:
-            choices.append(f"{token['name']} ({token['address']})")
+            choices.append(f"{token['symbol']} ({token['address']})")
         
         # TOKEN TO SELL
         while True:
-            select_sell_token = await inquirer.fuzzy(message="Enter token name or address you want to sell:", match_exact=True, choices=choices).execute_async()
+            select_sell_token = await inquirer.fuzzy(message="Enter token symbol or address you want to sell:", match_exact=True, choices=choices).execute_async()
             confirm = await inquirer.select(message="Confirm token to sell?", choices=["Yes", "No"]).execute_async()
             if confirm == "Yes":
-                if select_sell_token == "SOL":
+                if select_sell_token == "SOL (So11111111111111111111111111111111111111112)":
                     sell_token_symbol = select_sell_token
-                    sell_token_address = select_sell_token
+                    sell_token_address = "So11111111111111111111111111111111111111112"
+                    sell_token_account = self.wallet.pubkey().__str__()
                 else:
                     sell_token_symbol = re.search(r'^(.*?)\s*\(', select_sell_token).group(1)
                     sell_token_address = re.search(r'\((.*?)\)', select_sell_token).group(1)
-                choices.remove(select_sell_token)
-                break
+                    sell_token_account = await self.get_token_mint_account(token_mint=sell_token_address)
+                    
+                sell_token_account_info = await self.get_token_balance(token_mint_account=sell_token_account)
+                if sell_token_account_info['balance']['float'] == 0:
+                    print(f"{c.RED}! You don't have any tokens to sell.{c.RESET}")
+                else:
+                    choices.remove(select_sell_token)
+                    break
         
         # TOKEN TO BUY
         while True:
-            select_buy_token = await inquirer.fuzzy(message="Enter token name or address you want to buy:", match_exact=True, choices=choices).execute_async()
+            select_buy_token = await inquirer.fuzzy(message="Enter symbol name or address you want to buy:", match_exact=True, choices=choices).execute_async()
             confirm = await inquirer.select(message="Confirm token to buy?", choices=["Yes", "No"]).execute_async()
             if confirm == "Yes":
                 if select_buy_token == "SOL":
                     buy_token_symbol = select_buy_token
-                    buy_token_address = select_buy_token
+                    buy_token_address = "So11111111111111111111111111111111111111112"
+                    buy_token_address = self.wallet.pubkey().__str__()
                 else:
                     buy_token_symbol = re.search(r'^(.*?)\s*\(', select_buy_token).group(1)
                     buy_token_address = re.search(r'\((.*?)\)', select_buy_token).group(1)
+                    buy_token_account = await self.get_token_mint_account(token_mint=buy_token_address)
+                
+                buy_token_account_info = await self.get_token_balance(token_mint_account=buy_token_account)
                 choices.remove(select_buy_token)
                 break
         
-        if select_sell_token == "SOL":
-            sell_token_account = self.wallet.pubkey().__str__()
-        else:
-            sell_token_account = await self.get_token_mint_account(token_mint=sell_token_address)
-            
-        sell_token_account_info = await self.get_token_balance(token_mint_account=sell_token_account)
-        if sell_token_account_info['balance']['float'] == 0:
-            input("! You don't have any tokens to sell.")
-            return
-
         # AMOUNT TO SELL
         while True:
+            print(f"You own {sell_token_account_info['balance']['float']} ${sell_token_symbol}")
             prompt_amount_to_sell = await inquirer.number(message="Enter amount to sell:", float_allowed=True, max_allowed=sell_token_account_info['balance']['float']).execute_async()
             amount_to_sell = float(prompt_amount_to_sell)
             if float(amount_to_sell) == 0:
@@ -283,6 +297,16 @@ class Jupiter_CLI(Wallet):
                 if confirm_amount_to_sell == "Yes":
                     break
         
+        return sell_token_symbol, sell_token_address, buy_token_symbol, buy_token_address, amount_to_sell, sell_token_account_info, buy_token_account_info
+    
+    async def swap_menu(self):  
+        """Jupiter CLI - SWAP MENU."""
+        f.display_logo()
+        print("[JUPITER CLI] [SWAP MENU]")
+        print()
+        
+        sell_token_symbol, sell_token_address, buy_token_symbol, buy_token_address, amount_to_sell, sell_token_account_info, buy_token_account_info = await self.select_tokens()
+        
         # SLIPPAGE BPS
         while True:
             prompt_slippage_bps = await inquirer.number(message="Enter slippage percentage:", float_allowed=True, min_allowed=0.01, max_allowed=100.00).execute_async()
@@ -291,25 +315,272 @@ class Jupiter_CLI(Wallet):
             confirm_slippage = await inquirer.select(message="Confirm slippage percentage?", choices=["Yes", "No"]).execute_async()
             if confirm_slippage == "Yes":
                 break
-            
+        
+        # DIRECT ROUTE
+        direct_route = await inquirer.select(message="Single hop routes only (usually for shitcoins)?", choices=["Yes", "No"]).execute_async()
+        if direct_route == "Yes":
+            direct_route = True
+        elif direct_route == "No":
+            direct_route = False
+
         print()
-        print(f"SELL {amount_to_sell} ${sell_token_symbol} -> ${buy_token_symbol} | SLIPPAGE: {slippage_bps}%")
+        print(f"[SELL {amount_to_sell} ${sell_token_symbol} -> ${buy_token_symbol} | SLIPPAGE: {slippage_bps}%]")
         confirm_swap = await inquirer.select(message="Execute swap?", choices=["Yes", "No"]).execute_async()
         if confirm_swap == "Yes":
-            swap_data = await self.jupiter.swap(
-                input_mint=sell_token_address,
-                output_mint=buy_token_address,
-                amount=int(amount_to_sell *10**sell_token_account_info['decimals']),
-                slippage_bps=int(slippage_bps*100)
-            )
-            await self.sign_send_transaction(swap_data)
-            input("------------")
-            return
-        else:
+            try:
+                swap_data = await self.jupiter.swap(
+                    input_mint=sell_token_address,
+                    output_mint=buy_token_address,
+                    amount=amount_to_sell*10**sell_token_account_info['decimals'],
+                    slippage_bps=slippage_bps*100,
+                    only_direct_routes=direct_route
+                )
+                await self.sign_send_transaction(swap_data)
+            except:
+                print(f"{c.RED}Swap execution failed.{c.RESET}")
+                input("Press ENTER to continue.")
             return
         
+        elif confirm_swap == "No":
+            return
+    
+    async def limit_order_menu(self):
+        """Jupiter CLI - LIMIT ORDER MENU."""
+        f.display_logo()
+        print("[JUPITER CLI] [LIMIT ORDER MENU]")
+        print()
         
+        choices = [
+            "Open Limit Order",
+            "Display Orders History",
+            "Display Trades History",
+            "Back to main menu"
+        ]
 
+        open_orders = await Jupiter_CLI.get_open_orders(wallet_address=self.wallet.pubkey().__str__())
+        if len(open_orders) > 0:
+            choices.insert(1, "Cancel Limit Order(s)")
+            await Jupiter_CLI.display_open_orders(wallet_address=self.wallet.pubkey().__str__())
+        
+        limit_order_prompt_main_menu = await inquirer.select(message="Select menu:", choices=choices).execute_async()
+        
+        if limit_order_prompt_main_menu == "Open Limit Order":
+            sell_token_symbol, sell_token_address, buy_token_symbol, buy_token_address, amount_to_sell, sell_token_account_info, buy_token_account_info = await self.select_tokens()
+            
+            # AMOUNT TO BUY
+            while True:
+                amount_to_buy = await inquirer.number(message="Enter amount to buy:", float_allowed=True).execute_async()
+                confirm = await inquirer.select(message="Confirm amount to buy?", choices=["Yes", "No"]).execute_async()
+                if confirm == "Yes":
+                    amount_to_buy = float(amount_to_buy)
+                    break
+
+            prompt_expired_at = await inquirer.select(message="Add expiration to the limit order?", choices=["Yes", "No"]).execute_async()
+            if prompt_expired_at == "Yes":
+                unit_time_expired_at = await inquirer.select(message="Select unit time:", choices=[
+                    "Minute(s)",
+                    "Hour(s)",
+                    "Day(s)",
+                    "Week(s)",
+                ]).execute_async()
+                
+                prompt_time_expired_at = await inquirer.number(message=f"Enter the number of {unit_time_expired_at.lower()} before your limit order expires:", float_allowed=False, min_allowed=1).execute_async()
+                prompt_time_expired_at = int(prompt_time_expired_at)
+                
+                if unit_time_expired_at == "Minute(s)":
+                    expired_at = prompt_time_expired_at * 60 + int(time.time())
+                elif unit_time_expired_at == "Hour(s)":
+                    expired_at = prompt_time_expired_at * 3600 + int(time.time())
+                elif unit_time_expired_at == "Day(s)":
+                    expired_at = prompt_time_expired_at * 86400 + int(time.time())
+                elif unit_time_expired_at == "Week(s)":
+                    expired_at = prompt_time_expired_at * 604800 + int(time.time())
+            
+            elif prompt_expired_at == "No":
+                expired_at = None
+            
+            print("")
+            expired_at_phrase = "Never Expires" if expired_at is None else f"Expires in {prompt_time_expired_at} {unit_time_expired_at.lower()}"
+            print(f"[{amount_to_sell} ${sell_token_symbol} -> {amount_to_buy} ${buy_token_symbol} - {expired_at_phrase}]")
+            confirm_open_order = await inquirer.select(message="Open order?", choices=["Yes", "No"]).execute_async()
+            if confirm_open_order == "Yes":
+                
+                open_order_data = await self.jupiter.open_order(
+                    input_mint=sell_token_address,
+                    output_mint=buy_token_address,
+                    in_amount=amount_to_sell * 10 ** sell_token_account_info['decimals'],
+                    out_amount=amount_to_buy * 10 ** buy_token_account_info['decimals'],
+                    expired_at=expired_at,
+                )
+                
+                print()
+                await self.sign_send_transaction(
+                    transaction_data=open_order_data['transaction_data'],
+                    signatures_list=[open_order_data['signature2']]
+                )
+
+            await self.limit_order_menu()
+            return
+        
+        elif limit_order_prompt_main_menu == "Cancel Limit Order(s)":
+            f.display_logo()
+            
+            open_orders = await Jupiter_CLI.display_open_orders(wallet_address=self.wallet.pubkey().__str__())
+            choices = []
+        
+            for order_id, order_data in open_orders.items():
+                choices.append(f"ID {order_id} - {order_data['input_mint']['amount']} ${order_data['input_mint']['symbol']} -> {order_data['output_mint']['amount']} ${order_data['output_mint']['symbol']} (Account address: {order_data['open_order_pubkey']})")
+            
+            while True:
+                prompt_select_cancel_orders = await inquirer.checkbox(message="Select orders to cancel (Max 10) or press ENTER:", choices=choices).execute_async()
+                
+                if len(prompt_select_cancel_orders) > 10:
+                    print(f"{c.RED}! You can only cancel 10 orders at the time.")
+                elif len(prompt_select_cancel_orders) == 0:
+                    break
+                
+                confirm_cancel_orders = await inquirer.select(message="Cancel selected orders?", choices=["Yes", "No"]).execute_async()
+                
+                if confirm_cancel_orders == "Yes":
+                    orders_to_cancel = []
+                    
+                    for order_to_cancel in prompt_select_cancel_orders:
+                        order_account_address = re.search(r"Account address: (\w+)", order_to_cancel).group(1)
+                        orders_to_cancel.append(order_account_address)
+                        
+                    cancel_orders_data = await self.jupiter.cancel_orders(orders=orders_to_cancel)
+                    await self.sign_send_transaction(cancel_orders_data)
+                    break
+                    
+                elif confirm_cancel_orders == "No":
+                    break
+
+            await self.limit_order_menu()
+            return
+        
+        elif limit_order_prompt_main_menu == "Display Orders History":
+            tokens_list = await  Jupiter.get_tokens_list(list_type="all")
+            orders_history = await Jupiter.query_orders_history(wallet_address=self.wallet.pubkey().__str__())
+            data = {
+                "ID": [],
+                "CREATED AT": [],
+                "TOKEN SOLD": [],
+                "AMOUNT SOLD": [],
+                "TOKEN BOUGHT": [],
+                "AMOUNT BOUGHT": [],
+                "STATE": [],
+            }
+            
+            order_id = 1
+            for order in orders_history:
+                data['ID'].append(order_id)
+                date = datetime.datetime.strptime(order['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d-%Y %H:%M:%S")
+                data['CREATED AT'].append(date)
+
+                token_sold_address = order['inputMint']
+                token_bought_address = order['outputMint']
+                
+                token_sold_decimals = int(next((token.get("decimals", "") for token in tokens_list if token_sold_address == token.get("address", "")), None))
+                token_sold_symbol = next((token.get("symbol", "") for token in tokens_list if token_sold_address == token.get("address", "")), None)
+                data['TOKEN SOLD'].append(token_sold_symbol)
+                amount_sold = float(order['inAmount']) / 10 ** token_sold_decimals
+                data['AMOUNT SOLD'].append(amount_sold)
+                
+                token_bought_decimals = int(next((token.get("decimals", "") for token in tokens_list if token_bought_address == token.get("address", "")), None))
+                token_bought_symbol = next((token.get("symbol", "") for token in tokens_list if token_bought_address == token.get("address", "")), None)
+                data['TOKEN BOUGHT'].append(token_bought_symbol)
+                amount_bought = float(order['outAmount'])  / 10 ** token_sold_decimals
+                data['AMOUNT BOUGHT'].append(amount_bought)
+                
+                state = order['state']
+                data['STATE'] = state
+                
+                order_id += 1
+                
+            dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+            print(dataframe)
+            print()
+            
+            input()
+            await self.limit_order_menu()
+            return
+        
+        elif limit_order_prompt_main_menu == "Display Trades History":
+            await self.limit_order_menu()
+            return
+        
+        elif limit_order_prompt_main_menu == "Back to main menu":
+            await self.main_menu()
+            return
+
+    @staticmethod
+    async def get_open_orders(wallet_address: str) -> dict:
+        """Returns all open orders in a correct format."""
+        tokens_list = await  Jupiter.get_tokens_list(list_type="all")
+        open_orders_list = await Jupiter.query_open_orders(wallet_address=wallet_address)
+        open_orders = {}
+        
+        order_id = 1
+        for open_order in open_orders_list:
+            open_order_pubkey = open_order['publicKey']
+            
+            expired_at = open_order['account']['expiredAt']
+            if expired_at:
+                expired_at = datetime.datetime.fromtimestamp(int(expired_at)).strftime('%m-%d-%Y %H:%M:%S')
+            else:
+                expired_at = "Never"
+            
+            input_mint_address = open_order['account']['inputMint']
+            input_mint_amount = int(open_order['account']['inAmount'])
+            input_mint_symbol = next((token.get("symbol", "") for token in tokens_list if input_mint_address == token.get("address", "")), None)
+            input_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if input_mint_address == token.get("address", "")), None))
+            
+            output_mint_address = open_order['account']['outputMint']
+            output_mint_amount = int(open_order['account']['outAmount'])
+            output_mint_symbol = next((token.get("symbol", "") for token in tokens_list if output_mint_address == token.get("address", "")), None)
+            output_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if output_mint_address == token.get("address", "")), None))
+            
+            open_orders[order_id] = {
+                'open_order_pubkey': open_order_pubkey, 
+                'expired_at': expired_at,
+                'input_mint': {
+                    'symbol': input_mint_symbol,
+                    'amount': input_mint_amount / 10 ** input_mint_decimals
+                },
+                'output_mint': {
+                    'symbol': output_mint_symbol,
+                    'amount': output_mint_amount / 10 ** output_mint_decimals
+                }
+            }
+            order_id += 1
+        
+        return open_orders
+
+    @staticmethod
+    async def display_open_orders(wallet_address: str) -> dict:
+        """Displays current open orders and return open orders dict."""
+        open_orders = await Jupiter_CLI.get_open_orders(wallet_address=wallet_address)
+        
+        data = {
+            'ID': [],
+            'EXPIRED AT': [],
+            'SELL TOKEN': [],
+            'BUY TOKEN': [],
+            'ACCOUNT ADDRESS': []
+        }
+        
+        for open_order_id, open_order_data in open_orders.items():
+            data['ID'].append(open_order_id)
+            data['EXPIRED AT'].append(open_order_data['expired_at'])
+            data['SELL TOKEN'].append(f"{open_order_data['input_mint']['amount']} ${open_order_data['input_mint']['symbol']}")
+            data['BUY TOKEN'].append(f"{open_order_data['output_mint']['amount']} ${open_order_data['output_mint']['symbol']}")
+            data['ACCOUNT ADDRESS'].append(open_order_data['open_order_pubkey'])
+            
+        dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        print(dataframe)
+        print()
+        return open_orders
+        
 class Wallets_CLI():
     
     @staticmethod
@@ -355,7 +626,7 @@ class Wallets_CLI():
                 keypair = Keypair.from_bytes(base58.b58decode(wallet_private_key))
                 pubkey = keypair.pubkey()
             except:
-                print("! Invalid private key.")
+                print(f"{c.RED}! Invalid private key.{c.RESET}")
                 await Wallets_CLI.prompt_add_wallet()
                 return
             
@@ -559,7 +830,7 @@ class Main_CLI():
         cli_prompt_main_menu = await inquirer.select(message="Select menu:", choices=[
             "Jupiter Exchange",
             "Manage Wallets",
-            "CLI Configuration",
+            "CLI settings",
             "About",
             "Exit CLI"
         ]).execute_async()
@@ -568,12 +839,12 @@ class Main_CLI():
             config_data = await Config_CLI.get_config_data()
             wallets = await Wallets_CLI.get_wallets()
             last_wallet_selected = wallets[str(config_data['LAST_WALLET_SELECTED'])]['private_key']
-            await Jupiter_CLI(private_key=last_wallet_selected).main_menu()
+            await Jupiter_CLI(rpc_url=config_data['RPC_URL'], private_key=last_wallet_selected).main_menu()
             return
         elif cli_prompt_main_menu == "Manage Wallets":
             await Wallets_CLI.main_menu()
             return
-        elif cli_prompt_main_menu == "CLI Configuration":
+        elif cli_prompt_main_menu == "CLI settings":
             await Config_CLI.main_menu()
             return
         elif cli_prompt_main_menu == "About":
