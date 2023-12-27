@@ -1,5 +1,6 @@
 import json
 import base58
+import base64
 import os
 import time
 import re
@@ -13,16 +14,23 @@ from InquirerPy import inquirer
 from tabulate import tabulate
 import pandas as pd
 
+from solders import message
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
+from solders.transaction import VersionedTransaction
+from solders.signature import Signature
 
 from solana.rpc.async_api import AsyncClient
+from solana.rpc.commitment import Processed
+from solana.rpc.types import TxOpts
 
+from spl.token.instructions import get_associated_token_address
 
-import functions as f
 
 from jupiter_python_sdk.jupiter import Jupiter
 
+
+import functions as f
 
 class Config_CLI():
     
@@ -118,10 +126,58 @@ class Wallet():
     def __init__(self, private_key: str):
         self.wallet = Keypair.from_bytes(base58.b58decode(private_key))
         
-    def get_token_balance(self):
-        pass
+    async def get_token_balance(self, token_mint_account: str) -> dict:
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        
+        if token_mint_account == self.wallet.pubkey().__str__():
+            get_token_balance = await client.get_balance(pubkey=self.wallet.pubkey())
+            token_balance = {
+                'decimals': 9,
+                'balance': {
+                    'int': get_token_balance.value,
+                    'float': float(get_token_balance.value / 10 ** 9)
+                }
+            }
+        else:
+            get_token_balance = await client.get_token_account_balance(pubkey=token_mint_account)
+            try:
+                token_balance = {
+                    'decimals': int(get_token_balance.value.decimals),
+                    'balance': {
+                        'int': get_token_balance.value.amount,
+                        'float': float(get_token_balance.value.amount) / 10 ** int(get_token_balance.value.decimals)
+                    }
+                }
+            except AttributeError:
+                token_balance = {'balance': {'int': 0, 'float':0}}
+        
+        return token_balance
     
-
+    async def get_token_mint_account(self, token_mint: str) -> Pubkey:
+        token_mint_account = get_associated_token_address(owner=self.wallet.pubkey(), mint=Pubkey.from_string(token_mint))
+        return token_mint_account
+    
+    async def sign_send_transaction(self, transaction_data: str, signatures: list=None):
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        
+        raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
+        signature = self.wallet.sign_message(message.to_bytes_versioned(raw_transaction.message))
+        signed_txn = VersionedTransaction.populate(raw_transaction.message, [signature])
+        opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
+        result = await client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
+        transaction_id = json.loads(result.to_json())['result']
+        print(f"Transaction sent: https://explorer.solana.com/tx/{transaction_id}")
+        
+    async def get_status_transaction(self, transaction_hash: str):
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        
+        while True:
+            transaction_status = await client.get_transaction(tx_sig=Signature.from_string(transaction_hash), max_supported_transaction_version=0)
+            input(transaction_status)
+    
 class Jupiter_CLI(Wallet):
     
     def __init__(self, private_key: str) -> None:
@@ -132,6 +188,15 @@ class Jupiter_CLI(Wallet):
         f.display_logo()
         print("[JUPITER CLI] [MAIN MENU]")
         await Wallets_CLI.display_selected_wallet()
+        
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        self.jupiter = Jupiter(async_client=client, keypair=self.wallet)
+        
+        #---------------------------------------------------------------------------
+        #                            SWAP FUNCTION ALMOST FINISHED: ADD CHECK AMOUNT TOKEN TO SELL OWNED + CHECK TRANSATION STATUS
+        #---------------------------------------------------------------------------
+        # await self.get_status_transaction("4WP3da4QK5tg5Ff7RLjA51yYEZSMLLTcip4tQWvEeyEZrU7XUz2T4bU67NqgxSw9T4ZoHXQpCwx2nkw31YSnU4F2")
 
         jupiter_cli_prompt_main_menu = await inquirer.select(message="Select menu:", choices=[
             "Swap",
@@ -146,6 +211,7 @@ class Jupiter_CLI(Wallet):
         
         if jupiter_cli_prompt_main_menu == "Swap":
             await self.swap_menu()
+            await self.main_menu()
             return
         elif jupiter_cli_prompt_main_menu == "Change wallet":
             select_wallet = await Wallets_CLI.prompt_select_wallet()
@@ -158,12 +224,92 @@ class Jupiter_CLI(Wallet):
             return
         
     async def swap_menu(self):
+        """Jupiter CLI - SWAP MENU."""
+        f.display_logo()
+        print("[JUPITER CLI] [SWAP MENU]")
+        print()
+        
         tokens_list = await Jupiter.get_tokens_list(list_type="all")
-        choices = []
-        input(tokens_list[0])
-        await inquirer.fuzzy(message="Select one:", match_exact=True, choices=["USDC from", "SOLFTT", "TATSUROYAMASHITA"]).execute_async()
-    
-    
+        choices = ["SOL"]
+        for token in tokens_list:
+            choices.append(f"{token['name']} ({token['address']})")
+        
+        # TOKEN TO SELL
+        while True:
+            select_sell_token = await inquirer.fuzzy(message="Enter token name or address you want to sell:", match_exact=True, choices=choices).execute_async()
+            confirm = await inquirer.select(message="Confirm token to sell?", choices=["Yes", "No"]).execute_async()
+            if confirm == "Yes":
+                if select_sell_token == "SOL":
+                    sell_token_symbol = select_sell_token
+                    sell_token_address = select_sell_token
+                else:
+                    sell_token_symbol = re.search(r'^(.*?)\s*\(', select_sell_token).group(1)
+                    sell_token_address = re.search(r'\((.*?)\)', select_sell_token).group(1)
+                choices.remove(select_sell_token)
+                break
+        
+        # TOKEN TO BUY
+        while True:
+            select_buy_token = await inquirer.fuzzy(message="Enter token name or address you want to buy:", match_exact=True, choices=choices).execute_async()
+            confirm = await inquirer.select(message="Confirm token to buy?", choices=["Yes", "No"]).execute_async()
+            if confirm == "Yes":
+                if select_buy_token == "SOL":
+                    buy_token_symbol = select_buy_token
+                    buy_token_address = select_buy_token
+                else:
+                    buy_token_symbol = re.search(r'^(.*?)\s*\(', select_buy_token).group(1)
+                    buy_token_address = re.search(r'\((.*?)\)', select_buy_token).group(1)
+                choices.remove(select_buy_token)
+                break
+        
+        if select_sell_token == "SOL":
+            sell_token_account = self.wallet.pubkey().__str__()
+        else:
+            sell_token_account = await self.get_token_mint_account(token_mint=sell_token_address)
+            
+        sell_token_account_info = await self.get_token_balance(token_mint_account=sell_token_account)
+        if sell_token_account_info['balance']['float'] == 0:
+            input("! You don't have any tokens to sell.")
+            return
+
+        # AMOUNT TO SELL
+        while True:
+            prompt_amount_to_sell = await inquirer.number(message="Enter amount to sell:", float_allowed=True, max_allowed=sell_token_account_info['balance']['float']).execute_async()
+            amount_to_sell = float(prompt_amount_to_sell)
+            if float(amount_to_sell) == 0:
+                print("! Amount to sell cannot be 0.")
+            else:
+                confirm_amount_to_sell = await inquirer.select(message="Confirm amount to sell?", choices=["Yes", "No"]).execute_async()
+                if confirm_amount_to_sell == "Yes":
+                    break
+        
+        # SLIPPAGE BPS
+        while True:
+            prompt_slippage_bps = await inquirer.number(message="Enter slippage percentage:", float_allowed=True, min_allowed=0.01, max_allowed=100.00).execute_async()
+            slippage_bps = float(prompt_slippage_bps)
+            
+            confirm_slippage = await inquirer.select(message="Confirm slippage percentage?", choices=["Yes", "No"]).execute_async()
+            if confirm_slippage == "Yes":
+                break
+            
+        print()
+        print(f"SELL {amount_to_sell} ${sell_token_symbol} -> ${buy_token_symbol} | SLIPPAGE: {slippage_bps}%")
+        confirm_swap = await inquirer.select(message="Execute swap?", choices=["Yes", "No"]).execute_async()
+        if confirm_swap == "Yes":
+            swap_data = await self.jupiter.swap(
+                input_mint=sell_token_address,
+                output_mint=buy_token_address,
+                amount=int(amount_to_sell *10**sell_token_account_info['decimals']),
+                slippage_bps=int(slippage_bps*100)
+            )
+            await self.sign_send_transaction(swap_data)
+            input("------------")
+            return
+        else:
+            return
+        
+        
+
 class Wallets_CLI():
     
     @staticmethod
