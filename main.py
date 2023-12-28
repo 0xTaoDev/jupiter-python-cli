@@ -6,7 +6,8 @@ import time
 import re
 import httpx
 import asyncio
-import datetime
+
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -14,6 +15,8 @@ from InquirerPy import inquirer
 
 from tabulate import tabulate
 import pandas as pd
+
+from yaspin import yaspin
 
 from solders import message
 from solders.keypair import Keypair
@@ -363,6 +366,8 @@ class Jupiter_CLI(Wallet):
     
     async def limit_order_menu(self):
         """Jupiter CLI - LIMIT ORDER MENU."""
+        loading_spinner = yaspin()
+        loading_spinner.start()
         f.display_logo()
         print("[JUPITER CLI] [LIMIT ORDER MENU]")
         print()
@@ -371,7 +376,7 @@ class Jupiter_CLI(Wallet):
             "Open Limit Order",
             "Display Canceled Orders History",
             "Display Filled Orders History",
-            "Back to main menu"
+            "Back to main menu",
         ]
 
         open_orders = await Jupiter_CLI.get_open_orders(wallet_address=self.wallet.pubkey().__str__())
@@ -379,6 +384,7 @@ class Jupiter_CLI(Wallet):
             choices.insert(1, "Cancel Limit Order(s)")
             await Jupiter_CLI.display_open_orders(wallet_address=self.wallet.pubkey().__str__())
         
+        loading_spinner.stop()
         limit_order_prompt_main_menu = await inquirer.select(message="Select menu:", choices=choices).execute_async()
         
         if limit_order_prompt_main_menu == "Open Limit Order":
@@ -443,11 +449,14 @@ class Jupiter_CLI(Wallet):
         elif limit_order_prompt_main_menu == "Cancel Limit Order(s)":
             f.display_logo()
             
+            loading_spinner = yaspin()
+            loading_spinner.start()
             open_orders = await Jupiter_CLI.display_open_orders(wallet_address=self.wallet.pubkey().__str__())
             choices = []
         
             for order_id, order_data in open_orders.items():
                 choices.append(f"ID {order_id} - {order_data['input_mint']['amount']} ${order_data['input_mint']['symbol']} -> {order_data['output_mint']['amount']} ${order_data['output_mint']['symbol']} (Account address: {order_data['open_order_pubkey']})")
+            loading_spinner.stop()
             
             while True:
                 prompt_select_cancel_orders = await inquirer.checkbox(message="Select orders to cancel (Max 10) or press ENTER:", choices=choices).execute_async()
@@ -477,8 +486,10 @@ class Jupiter_CLI(Wallet):
             return
         
         elif limit_order_prompt_main_menu == "Display Canceled Orders History":
+            loading_spinner = yaspin()
+            loading_spinner.start()
             tokens_list = await  Jupiter.get_tokens_list(list_type="all")
-            orders_history = await Jupiter.query_orders_history(wallet_address=self.wallet.pubkey().__str__())
+            cancel_orders_history = await Jupiter.query_orders_history(wallet_address=self.wallet.pubkey().__str__())
             data = {
                 "ID": [],
                 "CREATED AT": [],
@@ -490,9 +501,9 @@ class Jupiter_CLI(Wallet):
             }
             
             order_id = 1
-            for order in orders_history:
+            for order in cancel_orders_history:
                 data['ID'].append(order_id)
-                date = datetime.datetime.strptime(order['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d-%Y %H:%M:%S")
+                date = datetime.strptime(order['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d-%Y %H:%M:%S")
                 data['CREATED AT'].append(date)
 
                 token_sold_address = order['inputMint']
@@ -516,6 +527,7 @@ class Jupiter_CLI(Wallet):
                 order_id += 1
                 
             dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+            loading_spinner.stop()
             print(dataframe)
             print()
             
@@ -524,8 +536,10 @@ class Jupiter_CLI(Wallet):
             return
         
         elif limit_order_prompt_main_menu == "Display Filled Orders History":
+            loading_spinner = yaspin()
+            loading_spinner.start()
             tokens_list = await  Jupiter.get_tokens_list(list_type="all")
-            orders_history = await Jupiter.query_trades_history(wallet_address=self.wallet.pubkey().__str__())
+            filled_orders_history = await Jupiter.query_trades_history(wallet_address=self.wallet.pubkey().__str__())
             data = {
                 "ID": [],
                 "CREATED AT": [],
@@ -537,9 +551,9 @@ class Jupiter_CLI(Wallet):
             }
             
             order_id = 1
-            for order in orders_history:
+            for order in filled_orders_history:
                 data['ID'].append(order_id)
-                date = datetime.datetime.strptime(order['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d-%Y %H:%M:%S")
+                date = datetime.strptime(order['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d-%Y %H:%M:%S")
                 data['CREATED AT'].append(date)
 
                 token_sold_address = order['order']['inputMint']
@@ -562,6 +576,8 @@ class Jupiter_CLI(Wallet):
                 order_id += 1
                 
             dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+            
+            loading_spinner.stop()
             print(dataframe)
             print()
             
@@ -671,6 +687,7 @@ class Jupiter_CLI(Wallet):
             # DISPLAY DCA ACCOUNTS THAT RETURNS DCA ACCOUNTS DICT
             #---------------------------------------------------------------------------
             await self.display_dca_accounts(wallet_address=self.wallet.pubkey().__str__())
+            input("dd")
             await self.dca_menu()
             return
         
@@ -683,8 +700,12 @@ class Jupiter_CLI(Wallet):
     @staticmethod
     async def get_open_orders(wallet_address: str) -> dict:
         """Returns all open orders in a correct format."""
+        
+        loading_spinner = yaspin()
+        loading_spinner.start()
         tokens_list = await  Jupiter.get_tokens_list(list_type="all")
         open_orders_list = await Jupiter.query_open_orders(wallet_address=wallet_address)
+        
         open_orders = {}
         
         order_id = 1
@@ -693,7 +714,7 @@ class Jupiter_CLI(Wallet):
             
             expired_at = open_order['account']['expiredAt']
             if expired_at:
-                expired_at = datetime.datetime.fromtimestamp(int(expired_at)).strftime('%m-%d-%Y %H:%M:%S')
+                expired_at = datetime.fromtimestamp(int(expired_at)).strftime('%m-%d-%Y %H:%M:%S')
             else:
                 expired_at = "Never"
             
@@ -721,11 +742,14 @@ class Jupiter_CLI(Wallet):
             }
             order_id += 1
         
+        loading_spinner.stop()
         return open_orders
 
     @staticmethod
     async def display_open_orders(wallet_address: str) -> dict:
         """Displays current open orders and return open orders dict."""
+        loading_spinner = yaspin()
+        loading_spinner.start()
         open_orders = await Jupiter_CLI.get_open_orders(wallet_address=wallet_address)
         
         data = {
@@ -744,21 +768,84 @@ class Jupiter_CLI(Wallet):
             data['ACCOUNT ADDRESS'].append(open_order_data['open_order_pubkey'])
             
         dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        loading_spinner.stop()
+        
         print(dataframe)
         print()
         return open_orders
 
     async def display_dca_accounts(self, wallet_address: str):
+        loading_spinner = yaspin()
+        loading_spinner.start()
+        tokens_list = await  Jupiter.get_tokens_list(list_type="all")
         get_dca_accounts = await self.jupiter.dca.fetch_user_dca_accounts(wallet_address=wallet_address, status=0)
+        loading_spinner.stop()
+        
         dca_accounts = get_dca_accounts['data']['dcaAccounts']
         
         data = {
             'ID': [],
             'CREATED AT': [],
-            'SOL': [],
-            'ADDRESS': [],
+            'END AT': [],
+            'SELLING': [],
+            'SELLING PER CYCLE': [],
+            "BUYING": [],
+            'CYCLE FREQUENCY': [],
+            'NEXT ORDER AT': [],
+            'ORDERS LEFT': []
         }
-    
+
+        dca_account_id = 1
+        #---------------------------------------------------------------------------
+        # NOT WORKING: NEXT ORDER AT & ORDERS LEFT
+        #---------------------------------------------------------------------------
+        for dca_account_data in dca_accounts:
+            data['ID'].append(dca_account_id)
+            
+            created_at = datetime.strptime(dca_account_data['createdAt'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%m-%d %H:%M")
+            data['CREATED AT'].append(created_at)
+            
+            end_at = int(dca_account_data['unfilledAmount']) / int(dca_account_data['inAmountPerCycle']) * int(dca_account_data['cycleFrequency'])
+            data['END AT'].append(datetime.fromtimestamp(end_at).strftime("%m-%d-%Y %H:%M"))
+            
+            input_mint_address = dca_account_data['inputMint']
+            input_mint_amount = int(dca_account_data['inDeposited'])
+            input_mint_symbol = next((token.get("symbol", "") for token in tokens_list if input_mint_address == token.get("address", "")), None)
+            input_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if input_mint_address == token.get("address", "")), None))
+            data['SELLING'].append(f"{input_mint_amount/10**input_mint_decimals} ${input_mint_symbol}")
+            data['SELLING PER CYCLE'].append(f"{int(dca_account_data['inAmountPerCycle'])/10**input_mint_decimals} ${input_mint_symbol}")
+            
+            output_mint_address = dca_account_data['outputMint']
+            output_mint_amount = int(dca_account_data['unfilledAmount']) + sum(int(fill['outAmount']) for fill in dca_account_data['fills'])
+            output_mint_symbol = next((token.get("symbol", "") for token in tokens_list if output_mint_address == token.get("address", "")), None)
+            output_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if output_mint_address == token.get("address", "")), None))
+            data['BUYING'].append(f"{output_mint_amount/10**output_mint_decimals} ${output_mint_symbol}")
+            
+            data['CYCLE FREQUENCY'] = f.get_timestamp_formatted(int(dca_account_data['cycleFrequency']))
+            
+            creation_date = datetime.utcfromtimestamp(datetime.fromisoformat(dca_account_data['createdAt'].replace("Z", "+00:00")).timestamp())
+            date_now = datetime.utcfromtimestamp(int(time.time()))
+            
+            time_elapsed = date_now - creation_date
+            total_seconds_elapsed = time_elapsed.total_seconds()
+            cycle_frequency = int(dca_account_data['cycleFrequency'])
+            
+            total_orders_filled = total_seconds_elapsed / cycle_frequency
+            next_order_time = creation_date + timedelta(seconds=(total_orders_filled + 1) * cycle_frequency)
+
+            data['NEXT ORDER AT'] = next_order_time
+            data['ORDERS LEFT'] = total_orders_filled - 1
+            
+            
+            dca_account_id += 1
+            
+
+        dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        loading_spinner.stop()
+        
+        print(dataframe)
+        print()
+        return dca_accounts
 
 class Wallets_CLI():
     
@@ -894,6 +981,8 @@ class Wallets_CLI():
     @staticmethod
     async def display_wallets():
         print()
+        loading_spinner = yaspin()
+        loading_spinner.start()
         data = {
             'ID': [],
             'NAME': [],
@@ -915,6 +1004,7 @@ class Wallets_CLI():
             data['SOL BALANCE'].append(f"{sol_balance} (${sol_balance_usd})")
             
         dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        loading_spinner.stop()
         print(dataframe)
         print()
         return
@@ -923,6 +1013,9 @@ class Wallets_CLI():
     async def display_selected_wallet():
         print()
         print("WALLET SELECTED")
+        loading_spinner = yaspin()
+        loading_spinner.start()
+        
         config_data = await Config_CLI.get_config_data()
         wallets = await Wallets_CLI.get_wallets()
         client = AsyncClient(endpoint=config_data['RPC_URL'])
@@ -938,6 +1031,7 @@ class Wallets_CLI():
         }
         
         dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        loading_spinner.stop()
         print(dataframe)
         print()
         return

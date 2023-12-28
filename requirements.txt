@@ -4,3 +4,4 @@ pyfiglet
 python-dotenv
 pandas
 tabulate
+yaspin
