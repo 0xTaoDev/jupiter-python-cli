@@ -269,7 +269,7 @@ class Jupiter_CLI(Wallet):
             select_sell_token = await inquirer.fuzzy(message="Enter token symbol or address you want to sell:", match_exact=True, choices=choices).execute_async()
             
             if select_sell_token is None:
-                print(f"{c.RED}! Select a token to sell.")
+                print(f"{c.RED}! Select a token to sell.{c.RESET}")
             
             elif select_sell_token is not None:
                 confirm = await inquirer.select(message="Confirm token to sell?", choices=["Yes", "No"]).execute_async()
@@ -287,7 +287,7 @@ class Jupiter_CLI(Wallet):
                     if sell_token_account_info['balance']['float'] == 0:
                         print(f"{c.RED}! You don't have any tokens to sell.{c.RESET}")
                     elif type_swap == "dca" and sell_token_address not in tokens_list_dca:
-                        print(f"{c.RED}Selected token to sell is not available for DCA")
+                        print(f"{c.RED}Selected token to sell is not available for DCA{c.RESET}")
                     else:
                         choices.remove(select_sell_token)
                         break
@@ -297,7 +297,7 @@ class Jupiter_CLI(Wallet):
             select_buy_token = await inquirer.fuzzy(message="Enter symbol name or address you want to buy:", match_exact=True, choices=choices).execute_async()
                         
             if select_sell_token is None:
-                print(f"{c.RED}! Select a token to buy.")
+                print(f"{c.RED}! Select a token to buy.{c.RESET}")
             
             elif select_sell_token is not None:
                 
@@ -314,7 +314,7 @@ class Jupiter_CLI(Wallet):
                     
                     buy_token_account_info = await self.get_token_balance(token_mint_account=buy_token_account)
                     if type_swap == "dca" and sell_token_address not in tokens_list_dca:
-                        print(f"{c.RED}Selected token to buy is not available for DCA")
+                        print(f"{c.RED}Selected token to buy is not available for DCA{c.RESET}")
                     else:
                         choices.remove(select_buy_token)
                         break
@@ -476,7 +476,7 @@ class Jupiter_CLI(Wallet):
                 prompt_select_cancel_orders = await inquirer.checkbox(message="Select orders to cancel (Max 10) or press ENTER:", choices=choices).execute_async()
                 
                 if len(prompt_select_cancel_orders) > 10:
-                    print(f"{c.RED}! You can only cancel 10 orders at the time.")
+                    print(f"{c.RED}! You can only cancel 10 orders at the time.{c.RESET}")
                 elif len(prompt_select_cancel_orders) == 0:
                     break
                 
@@ -732,7 +732,14 @@ class Jupiter_CLI(Wallet):
         elif dca_menu_prompt_choice == "Back to main menu":
             await self.main_menu()
             return
-         
+    
+    
+    
+    async def snipe_menu(self):
+        """Menu for Sniper Tokens"""
+    
+    
+    
     @staticmethod
     async def get_open_orders(wallet_address: str) -> dict:
         """Returns all open orders in a correct format."""
