@@ -23,10 +23,13 @@ from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solders.transaction import VersionedTransaction
 from solders.signature import Signature
+from solders.system_program import transfer, TransferParams
+
 
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Processed
 from solana.rpc.types import TxOpts
+from solana.transaction import Transaction
 
 from spl.token.instructions import get_associated_token_address
 
@@ -340,7 +343,7 @@ class Jupiter_CLI(Wallet):
         
         # SLIPPAGE BPS
         while True:
-            prompt_slippage_bps = await inquirer.number(message="Enter slippage percentage:", float_allowed=True, min_allowed=0.01, max_allowed=100.00).execute_async()
+            prompt_slippage_bps = await inquirer.number(message="Enter slippage percentage (%):", float_allowed=True, min_allowed=0.01, max_allowed=100.00).execute_async()
             slippage_bps = float(prompt_slippage_bps)
             
             confirm_slippage = await inquirer.select(message="Confirm slippage percentage?", choices=["Yes", "No"]).execute_async()
@@ -888,7 +891,7 @@ class Wallets_CLI():
             return json.load(wallets_file) 
     
     @staticmethod
-    async def prompt_select_wallet():
+    async def prompt_select_wallet() -> str:
         """Prompts user to select a wallet."""
         await Wallets_CLI.display_wallets()
         wallets = await Wallets_CLI.get_wallets()
@@ -896,22 +899,18 @@ class Wallets_CLI():
         choices = []
         for wallet_id, wallet_data in wallets.items():
             choices.append(f"ID {wallet_id} - {wallet_data['wallet_name']} - {wallet_data['pubkey']}")
-            
-        prompt_select_wallet = await inquirer.select(message="Select wallet:", choices=choices).execute_async()
         
-        confirm = await inquirer.select(message="Confirm wallet selected?", choices=["Yes", "No"]).execute_async()
-        if confirm == "Yes":        
-            wallet_id = re.search(r'ID (\d+) -', prompt_select_wallet).group(1)
+        while True:
+            prompt_select_wallet = await inquirer.select(message="Select wallet:", choices=choices).execute_async()
+            confirm = await inquirer.select(message="Confirm wallet selected?", choices=["Yes", "No"]).execute_async()
+            if confirm == "Yes":        
+                wallet_id = re.search(r'ID (\d+) -', prompt_select_wallet).group(1)
+                
+                config_data = await Config_CLI.get_config_data()
+                config_data['LAST_WALLET_SELECTED'] = wallet_id
+                await Config_CLI.edit_config_file(config_data=config_data)
             
-            config_data = await Config_CLI.get_config_data()
-            config_data['LAST_WALLET_SELECTED'] = wallet_id
-            await Config_CLI.edit_config_file(config_data=config_data)
-            
-            return wallets[wallet_id]['private_key']
-            
-        elif confirm == "No":
-            await Wallets_CLI.prompt_select_wallet()
-            return
+                return wallets[wallet_id]['private_key']
 
     @staticmethod
     async def prompt_add_wallet():
@@ -1178,13 +1177,45 @@ class Main_CLI():
             print()
             print("DONATIONS")
             print("This project doesn't include platform fees.\nIf you find value in it and would like to support its development, your donations are greatly appreciated.")
-            cli_prompt_main_menu = await inquirer.select(message="Would you make a donation?", choices=[
+            confirm_make_donation = await inquirer.select(message="Would you make a donation?", choices=[
                 "Yes",
                 "No",
             ]).execute_async()
-           
+
+            if confirm_make_donation == "Yes":
+                config_data = await Config_CLI.get_config_data()
+                client = AsyncClient(endpoint=config_data['RPC_URL'])
+                
+                wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+                wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
+               
+                get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
+                sol_price = f.get_crypto_price("SOL")
+                sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
+                sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
+
+                amount_usd_to_donate = await inquirer.number(message="Enter amount $ to donate:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
+
+                prompt_donation_choice = await inquirer.select(message="Confirm donation?", choices=["Yes", "No"]).execute_async()
+                if prompt_donation_choice == "Yes":
+                    transfer_IX = transfer(TransferParams(
+                        from_pubkey=wallet.wallet.pubkey(),
+                        to_pubkey=Pubkey.from_string("AyWu89SjZBW1MzkxiREmgtyMKxSkS1zVy8Uo23RyLphX"),
+                        lamports=int(float(amount_usd_to_donate) / sol_price * 10 ** 9)
+                    ))
+                    transaction = Transaction().add(transfer_IX)
+                    transaction.sign(wallet.wallet)
+                    try:
+                        await client.send_transaction(transaction, wallet.wallet, opts=TxOpts(skip_preflight=True, preflight_commitment=Processed))
+                        print(f"{c.GREEN}Thanks a lot for your donation{c.RESET}")
+                    except:
+                        print(f"{c.RED}Failed to send the donation.{c.RESET}")
+                    
+                    input("Press ENTER to continue ")
+                
             await Main_CLI.main_menu()
             return
+        
         elif cli_prompt_main_menu == "Exit CLI":
             print("\nBye!")
             time.sleep(1)
