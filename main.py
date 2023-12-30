@@ -74,12 +74,18 @@ class Config_CLI():
     @staticmethod
     async def prompt_rpc_url():
         """Asks the user the RPC URL endpoint to be used."""
-        rpc_url = await inquirer.text(message="Enter your RPC URL endpoint or press ENTER:").execute_async()
+        config_data = await Config_CLI.get_config_data()
+        rpc_url = await inquirer.text(message="Enter your Solana RPC URL endpoint or press ENTER to skip:").execute_async()
         # rpc_url = os.getenv('RPC_URL')
         # confirm = "Yes"
         
-        if rpc_url != "":
-            confirm = await inquirer.select(message="Confirm?", choices=["Yes", "No"]).execute_async()
+        if rpc_url == "" and config_data['RPC_URL'] is None:
+            print(f"{c.RED}! You need to have a RPC endpoint to user the CLI")
+            await Config_CLI.prompt_rpc_url()
+            return
+	
+        elif rpc_url != "":
+            confirm = await inquirer.select(message="Confirm Solana RPC URL Endpoint?", choices=["Yes", "No"]).execute_async()
             if confirm == "Yes":
                 if rpc_url.endswith("/"):
                     rpc_url = rpc_url[:-1]
@@ -91,7 +97,6 @@ class Config_CLI():
                     await Config_CLI.prompt_rpc_url()
                     return
                 else:
-                    config_data = await Config_CLI.get_config_data()
                     config_data['RPC_URL'] = rpc_url
                     await Config_CLI.edit_config_file(config_data=config_data)
                     return
@@ -99,8 +104,58 @@ class Config_CLI():
             elif confirm == "No":
                 await Config_CLI.prompt_rpc_url()
                 return
+
         return
+    
+    @staticmethod
+    async def prompt_discord_webhook():
+        """Asks user Discord Webhook URL to be notified for Sniper tool."""
+        config_data = await Config_CLI.get_config_data()
+        discord_webhook = await inquirer.text(message="Enter your Discord Webhook or press ENTER to skip:").execute_async()
+        
+        if discord_webhook  != "":
+            confirm = await inquirer.select(message="Confirm Discord Webhook?", choices=["Yes", "No"]).execute_async()
             
+            if confirm == "Yes":
+                config_data['DISCORD_WEBHOOK'] = discord_webhook
+                await Config_CLI.edit_config_file(config_data=config_data)
+                return
+            
+            elif confirm == "No":
+                await Config_CLI.prompt_discord_webhook()
+                return
+        
+        return
+    
+    @staticmethod
+    async def prompt_telegram_api():
+        """Asks user Telegram API to be notified for Sniper tool."""
+        config_data = await Config_CLI.get_config_data()
+        telegram_bot_token = await inquirer.text(message="Enter Telegram Bot Token or press ENTER to skip:").execute_async()
+        
+        if telegram_bot_token  != "":
+            confirm = await inquirer.select(message="Confirm Telegram Bot Token?", choices=["Yes", "No"]).execute_async()
+            
+            if confirm == "Yes":
+                config_data['TELEGRAM_BOT_TOKEN'] = telegram_bot_token
+                
+                while True:
+                    telegram_bot_token = await inquirer.text(message="Enter Telegram Chat ID").execute_async()
+                    confirm = await inquirer.select(message="Confirm Telegram Chat ID?", choices=["Yes", "No"]).execute_async()
+                    
+                    if confirm == "Yes":
+                        config_data['TELEGRAM_CHAT_ID'] = int(telegram_bot_token)
+                        await Config_CLI.edit_config_file(config_data=config_data)
+                        break
+                
+                return
+            
+            elif confirm == "No":
+                await Config_CLI.prompt_telegram_api()
+                return
+        
+        return
+    
     @staticmethod
     async def main_menu():
         """Main menu for CLI settings."""
@@ -120,8 +175,10 @@ class Config_CLI():
         
         config_cli_prompt_main_menu = await inquirer.select(message="Select CLI parameter to change:", choices=[
             # "CLI collect fees", # TBD
-            "RPC URL Endpoint",
-            "Back to main menu"
+            "Solana RPC URL Endpoint",
+            "Discord",
+            "Telegram",
+            "Back to main menu",
         ]).execute_async()
         
         if config_cli_prompt_main_menu == "CLI collect fees":
@@ -130,8 +187,15 @@ class Config_CLI():
         elif config_cli_prompt_main_menu == "RPC URL Endpoint":
             await Config_CLI.prompt_rpc_url()
             await Config_CLI.main_menu()
+        elif config_cli_prompt_main_menu == "Discord":
+            await Config_CLI.prompt_discord_webhook()
+            await Config_CLI.main_menu()
+        elif config_cli_prompt_main_menu == "Telegram":
+            await Config_CLI.prompt_telegram_api()
+            await Config_CLI.main_menu()
         elif config_cli_prompt_main_menu == "Back to main menu":
             await Main_CLI.main_menu()
+            return
 
 
 class Wallet():
@@ -199,7 +263,7 @@ class Wallet():
         if transaction_status is None:
             print("Transaction SUCCESS!")
         else:
-            print(f"{c.RED}Transaction FAILED!{c.RESET}")
+            print(f"{c.RED}! Transaction FAILED!{c.RESET}")
             
         input("\nPress ENTER to continue")
         return
@@ -287,7 +351,7 @@ class Jupiter_CLI(Wallet):
                     if sell_token_account_info['balance']['float'] == 0:
                         print(f"{c.RED}! You don't have any tokens to sell.{c.RESET}")
                     elif type_swap == "dca" and sell_token_address not in tokens_list_dca:
-                        print(f"{c.RED}Selected token to sell is not available for DCA{c.RESET}")
+                        print(f"{c.RED}! Selected token to sell is not available for DCA{c.RESET}")
                     else:
                         choices.remove(select_sell_token)
                         break
@@ -314,7 +378,7 @@ class Jupiter_CLI(Wallet):
                     
                     buy_token_account_info = await self.get_token_balance(token_mint_account=buy_token_account)
                     if type_swap == "dca" and sell_token_address not in tokens_list_dca:
-                        print(f"{c.RED}Selected token to buy is not available for DCA{c.RESET}")
+                        print(f"{c.RED}! Selected token to buy is not available for DCA{c.RESET}")
                     else:
                         choices.remove(select_buy_token)
                         break
@@ -371,7 +435,7 @@ class Jupiter_CLI(Wallet):
                 )
                 await self.sign_send_transaction(swap_data)
             except:
-                print(f"{c.RED}Swap execution failed.{c.RESET}")
+                print(f"{c.RED}! Swap execution failed.{c.RESET}")
                 input("Press ENTER to continue ")
             return
         
@@ -473,7 +537,7 @@ class Jupiter_CLI(Wallet):
             loading_spinner.stop()
             
             while True:
-                prompt_select_cancel_orders = await inquirer.checkbox(message="Select orders to cancel (Max 10) or press ENTER:", choices=choices).execute_async()
+                prompt_select_cancel_orders = await inquirer.checkbox(message="Select orders to cancel (Max 10) or press ENTER to skip:", choices=choices).execute_async()
                 
                 if len(prompt_select_cancel_orders) > 10:
                     print(f"{c.RED}! You can only cancel 10 orders at the time.{c.RESET}")
@@ -691,7 +755,7 @@ class Jupiter_CLI(Wallet):
                     print(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_info['transaction_hash']}{c.RESET}")
             
                 except:
-                    print(f"{c.RED}Creating DCA Account failed.{c.RESET}")
+                    print(f"{c.RED}! Creating DCA Account failed.{c.RESET}")
                 
                 input("\nPress ENTER to continue.")
 
@@ -707,7 +771,7 @@ class Jupiter_CLI(Wallet):
                 choices.append(f"ID {dca_account_id} (DCA Account Address: {dca_account_data['dcaKey']})")
                 dca_account_id += 1
            
-            dca_close_account_prompt_choice = await inquirer.checkbox(message="Select DCA Account to close with SPACEBAR or press ENTER:", choices=choices).execute_async()
+            dca_close_account_prompt_choice = await inquirer.checkbox(message="Select DCA Account to close with SPACEBAR or press ENTER to skip:", choices=choices).execute_async()
             
             if len(dca_close_account_prompt_choice) == 0:
                 await self.dca_menu()
@@ -721,7 +785,7 @@ class Jupiter_CLI(Wallet):
                         await self.jupiter.dca.close_dca(dca_pubkey=Pubkey.from_string(dca_account_address))
                         print(f"{c.GREEN}Deleted DCA Account #{dca_account_id}{c.RESET}")
                     except:
-                        print(f"{c.RED}Failed to delete DCA Account #{dca_account_id}{c.RESET}")
+                        print(f"{c.RED}! Failed to delete DCA Account #{dca_account_id}{c.RESET}")
                     
                     await asyncio.sleep(1)
 
@@ -889,6 +953,7 @@ class Jupiter_CLI(Wallet):
         print()
         return dca_accounts
 
+
 class Wallets_CLI():
     
     @staticmethod
@@ -996,7 +1061,7 @@ class Wallets_CLI():
         for wallet_id, wallet_data in wallets.items():
             choices.append(f"ID {wallet_id} - {wallet_data['wallet_name']} - {wallet_data['pubkey']}")
     
-        prompt_wallets_to_delete = await inquirer.checkbox(message="Select wallet(s) to delete with SPACEBAR or press ENTER:", choices=choices).execute_async()
+        prompt_wallets_to_delete = await inquirer.checkbox(message="Select wallet(s) to delete with SPACEBAR or press ENTER to skip:", choices=choices).execute_async()
         
         if len(prompt_wallets_to_delete) == 0:
             await Wallets_CLI.main_menu()
