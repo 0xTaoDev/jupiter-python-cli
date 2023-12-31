@@ -285,7 +285,7 @@ class Jupiter_CLI(Wallet):
             "Swap",
             "Limit Order",
             "DCA",
-            "Snipe Token",
+            "Token Sniper",
             "Lookup",
             "Stats",
             "Change wallet",
@@ -305,10 +305,15 @@ class Jupiter_CLI(Wallet):
             await self.dca_menu()
             return
         
+        elif jupiter_cli_prompt_main_menu == "Token Sniper":
+            await self.token_sniper_menu()
+            await self.main_menu()
+            return
+        
         elif jupiter_cli_prompt_main_menu == "Change wallet":
-            select_wallet = await Wallets_CLI.prompt_select_wallet()
-            if select_wallet:
-                self.wallet = Keypair.from_bytes(base58.b58decode(select_wallet))
+            wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+            if wallet_private_key:
+                self.wallet = Keypair.from_bytes(base58.b58decode(wallet_private_key))
             await self.main_menu()
             return
         
@@ -444,7 +449,7 @@ class Jupiter_CLI(Wallet):
     
     async def limit_order_menu(self):
         """Jupiter CLI - LIMIT ORDER MENU."""
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
         loading_spinner.start()
         f.display_logo()
         print("[JUPITER CLI] [LIMIT ORDER MENU]")
@@ -527,7 +532,7 @@ class Jupiter_CLI(Wallet):
         elif limit_order_prompt_main_menu == "Cancel Limit Order(s)":
             f.display_logo()
             
-            loading_spinner = yaspin()
+            loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
             loading_spinner.start()
             open_orders = await Jupiter_CLI.display_open_orders(wallet_address=self.wallet.pubkey().__str__())
             choices = []
@@ -564,7 +569,7 @@ class Jupiter_CLI(Wallet):
             return
         
         elif limit_order_prompt_main_menu == "Display Canceled Orders History":
-            loading_spinner = yaspin()
+            loading_spinner = yaspin(text=f"{c.BLUE}Loading canceled limit orders{c.RESET}", color="blue")
             loading_spinner.start()
             tokens_list = await  Jupiter.get_tokens_list(list_type="all")
             cancel_orders_history = await Jupiter.query_orders_history(wallet_address=self.wallet.pubkey().__str__())
@@ -614,7 +619,7 @@ class Jupiter_CLI(Wallet):
             return
         
         elif limit_order_prompt_main_menu == "Display Filled Orders History":
-            loading_spinner = yaspin()
+            loading_spinner = yaspin(text=f"{c.BLUE}Loading filled limit orders{c.RESET}", color="blue")
             loading_spinner.start()
             tokens_list = await  Jupiter.get_tokens_list(list_type="all")
             filled_orders_history = await Jupiter.query_trades_history(wallet_address=self.wallet.pubkey().__str__())
@@ -799,16 +804,64 @@ class Jupiter_CLI(Wallet):
     
     
     
-    async def snipe_menu(self):
-        """Menu for Sniper Tokens"""
+    async def token_sniper_menu(self):
+        """Jupiter CLI - TOKEN SNIPER MENU."""
+        f.display_logo()
+        print("[JUPITER CLI] [TOKEN SNIPER MENU]")
+        print()
     
-    
-    
+        token_sniper_menu_prompt_choices = await inquirer.select(message="Select menu:", choices=["Add a token to snipe", "Manage current tokens", "Back to main menu"]).execute_async()
+        
+        if token_sniper_menu_prompt_choices == "Add a token to snipe":
+            await self.add_token_snipe()
+            await self.main_menu()
+            return
+        
+        elif token_sniper_menu_prompt_choices == "Manage current tokens":
+            pass
+            
+        elif token_sniper_menu_prompt_choices == "Back to main menu":
+            await self.main_menu()
+            return
+
+    async def add_token_snipe(self):
+        """PROMPT ADD TOKEN TO SNIPE."""
+        f.display_logo()
+        print("[JUPITER CLI] [ADD TOKEN TO SNIPE]")
+        print()
+        
+        token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
+        
+        while True:
+            token_address = await inquirer.text(message="Enter token address:").execute_async()
+            try:
+                Pubkey.from_string(token_address)
+                break
+            except:
+                print(f"")
+        
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+        wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
+        get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
+        sol_price = f.get_crypto_price("SOL")
+        sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
+        sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
+        
+        amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
+        
+        take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True).execute_async()
+        stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(amount_usd_to_buy)).execute_async()
+        
+        alerts = await inquirer.select(message=f"Alerts (Discord/Telegram)?", choices=["Yes", "No"]).execute_async()
+        
+        
     @staticmethod
     async def get_open_orders(wallet_address: str) -> dict:
         """Returns all open orders in a correct format."""
         
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
         loading_spinner.start()
         tokens_list = await  Jupiter.get_tokens_list(list_type="all")
         open_orders_list = await Jupiter.query_open_orders(wallet_address=wallet_address)
@@ -855,7 +908,7 @@ class Jupiter_CLI(Wallet):
     @staticmethod
     async def display_open_orders(wallet_address: str) -> dict:
         """Displays current open orders and return open orders dict."""
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
         loading_spinner.start()
         open_orders = await Jupiter_CLI.get_open_orders(wallet_address=wallet_address)
         
@@ -882,7 +935,7 @@ class Jupiter_CLI(Wallet):
         return open_orders
 
     async def display_dca_accounts(self, wallet_address: str):
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading DCA Accounts{c.RESET}", color="blue")
         loading_spinner.start()
         tokens_list = await  Jupiter.get_tokens_list(list_type="all")
         get_dca_accounts = await self.jupiter.dca.fetch_user_dca_accounts(wallet_address=wallet_address, status=0)
@@ -982,7 +1035,7 @@ class Wallets_CLI():
                 config_data['LAST_WALLET_SELECTED'] = wallet_id
                 await Config_CLI.edit_config_file(config_data=config_data)
             
-                return wallets[wallet_id]['private_key']
+                return wallet_id, wallets[wallet_id]['private_key']
 
     @staticmethod
     async def prompt_add_wallet():
@@ -1084,7 +1137,7 @@ class Wallets_CLI():
     @staticmethod
     async def display_wallets():
         print()
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading wallets{c.RESET}", color="blue")
         loading_spinner.start()
         data = {
             'ID': [],
@@ -1110,13 +1163,13 @@ class Wallets_CLI():
         loading_spinner.stop()
         print(dataframe)
         print()
-        return
+        return wallets
 
     @staticmethod
     async def display_selected_wallet():
         print()
         print("WALLET SELECTED")
-        loading_spinner = yaspin()
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading wallet selected{c.RESET}", color="blue")
         loading_spinner.start()
         
         config_data = await Config_CLI.get_config_data()
@@ -1258,7 +1311,7 @@ class Main_CLI():
                 config_data = await Config_CLI.get_config_data()
                 client = AsyncClient(endpoint=config_data['RPC_URL'])
                 
-                wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+                wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
                 wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
                
                 get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
