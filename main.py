@@ -58,6 +58,20 @@ class Config_CLI():
         return True
     
     @staticmethod
+    async def edit_tokens_file(tokens_data: dict):
+        """Edit tokens file."""
+        with open('tokens.json', 'w') as tokens_file:
+            json.dump(tokens_data, tokens_file, indent=4)
+        return True
+    
+    @staticmethod
+    async def get_tokens_data() -> dict:
+        """Fetch token file data.
+        Returns: dict"""
+        with open('tokens.json', 'r') as tokens_file:
+            return json.load(tokens_file)
+        
+    @staticmethod
     async def prompt_collect_fees():
         """Asks the user if they want the CLI to take a small percentage of fees during their swaps."""
         collect_fees = inquirer.select(message="Would you like CLI to collect small fees from your swaps? (0.005%)", choices=["Yes", "No"]).execute_async()
@@ -320,6 +334,7 @@ class Jupiter_CLI(Wallet):
                 await Main_CLI.main_menu()
                 return
     
+
     async def select_tokens(self, type_swap: str):
         """Prompts user to select tokens & amount to sell.
         
@@ -445,6 +460,7 @@ class Jupiter_CLI(Wallet):
         
         elif confirm_swap == "No":
             return
+    
     
     async def limit_order_menu(self):
         """Jupiter CLI - LIMIT ORDER MENU."""
@@ -668,6 +684,84 @@ class Jupiter_CLI(Wallet):
                 await self.main_menu()
                 return
     
+    @staticmethod
+    async def get_open_orders(wallet_address: str) -> dict:
+        """Returns all open orders in a correct format."""
+        
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
+        loading_spinner.start()
+        tokens_list = await  Jupiter.get_tokens_list(list_type="all")
+        open_orders_list = await Jupiter.query_open_orders(wallet_address=wallet_address)
+        
+        open_orders = {}
+        
+        order_id = 1
+        for open_order in open_orders_list:
+            open_order_pubkey = open_order['publicKey']
+            
+            expired_at = open_order['account']['expiredAt']
+            if expired_at:
+                expired_at = datetime.fromtimestamp(int(expired_at)).strftime('%m-%d-%Y %H:%M:%S')
+            else:
+                expired_at = "Never"
+            
+            input_mint_address = open_order['account']['inputMint']
+            input_mint_amount = int(open_order['account']['inAmount'])
+            input_mint_symbol = next((token.get("symbol", "") for token in tokens_list if input_mint_address == token.get("address", "")), None)
+            input_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if input_mint_address == token.get("address", "")), None))
+            
+            output_mint_address = open_order['account']['outputMint']
+            output_mint_amount = int(open_order['account']['outAmount'])
+            output_mint_symbol = next((token.get("symbol", "") for token in tokens_list if output_mint_address == token.get("address", "")), None)
+            output_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if output_mint_address == token.get("address", "")), None))
+            
+            open_orders[order_id] = {
+                'open_order_pubkey': open_order_pubkey, 
+                'expired_at': expired_at,
+                'input_mint': {
+                    'symbol': input_mint_symbol,
+                    'amount': input_mint_amount / 10 ** input_mint_decimals
+                },
+                'output_mint': {
+                    'symbol': output_mint_symbol,
+                    'amount': output_mint_amount / 10 ** output_mint_decimals
+                }
+            }
+            order_id += 1
+        
+        loading_spinner.stop()
+        return open_orders
+
+    @staticmethod
+    async def display_open_orders(wallet_address: str) -> dict:
+        """Displays current open orders and return open orders dict."""
+        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
+        loading_spinner.start()
+        open_orders = await Jupiter_CLI.get_open_orders(wallet_address=wallet_address)
+        
+        data = {
+            'ID': [],
+            'EXPIRED AT': [],
+            'SELL TOKEN': [],
+            'BUY TOKEN': [],
+            'ACCOUNT ADDRESS': []
+        }
+        
+        for open_order_id, open_order_data in open_orders.items():
+            data['ID'].append(open_order_id)
+            data['EXPIRED AT'].append(open_order_data['expired_at'])
+            data['SELL TOKEN'].append(f"{open_order_data['input_mint']['amount']} ${open_order_data['input_mint']['symbol']}")
+            data['BUY TOKEN'].append(f"{open_order_data['output_mint']['amount']} ${open_order_data['output_mint']['symbol']}")
+            data['ACCOUNT ADDRESS'].append(open_order_data['open_order_pubkey'])
+            
+        dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        loading_spinner.stop()
+        
+        print(dataframe)
+        print()
+        return open_orders
+
+
     async def dca_menu(self):
         """Jupiter CLI - DCA MENU."""
         f.display_logo()
@@ -796,137 +890,6 @@ class Jupiter_CLI(Wallet):
             case "Back to main menu":
                 await self.main_menu()
                 return
-        
-    async def token_sniper_menu(self):
-        """Jupiter CLI - TOKEN SNIPER MENU."""
-        f.display_logo()
-        print("[JUPITER CLI] [TOKEN SNIPER MENU]")
-        print()
-    
-        token_sniper_menu_prompt_choices = await inquirer.select(message="Select menu:", choices=["Add a token to snipe", "Manage current tokens", "Back to main menu"]).execute_async()
-        
-        match token_sniper_menu_prompt_choices:
-            case "Add a token to snipe":
-                await self.add_token_snipe()
-                await self.main_menu()
-                return
-            
-            case "Manage current tokens":
-                pass
-                
-            case "Back to main menu":
-                await self.main_menu()
-                return
-
-    async def add_token_snipe(self):
-        """PROMPT ADD TOKEN TO SNIPE."""
-        f.display_logo()
-        print("[JUPITER CLI] [ADD TOKEN TO SNIPE]")
-        print()
-        
-        token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
-        
-        while True:
-            token_address = await inquirer.text(message="Enter token address:").execute_async()
-            try:
-                Pubkey.from_string(token_address)
-                break
-            except:
-                print(f"")
-        
-        config_data = await Config_CLI.get_config_data()
-        client = AsyncClient(endpoint=config_data['RPC_URL'])
-        wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
-        wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
-        get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
-        sol_price = f.get_crypto_price("SOL")
-        sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
-        sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
-        
-        amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
-        
-        take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True).execute_async()
-        stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(amount_usd_to_buy)).execute_async()
-        
-        alerts = await inquirer.select(message=f"Alerts (Discord/Telegram)?", choices=["Yes", "No"]).execute_async()
-        
-        
-    @staticmethod
-    async def get_open_orders(wallet_address: str) -> dict:
-        """Returns all open orders in a correct format."""
-        
-        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
-        loading_spinner.start()
-        tokens_list = await  Jupiter.get_tokens_list(list_type="all")
-        open_orders_list = await Jupiter.query_open_orders(wallet_address=wallet_address)
-        
-        open_orders = {}
-        
-        order_id = 1
-        for open_order in open_orders_list:
-            open_order_pubkey = open_order['publicKey']
-            
-            expired_at = open_order['account']['expiredAt']
-            if expired_at:
-                expired_at = datetime.fromtimestamp(int(expired_at)).strftime('%m-%d-%Y %H:%M:%S')
-            else:
-                expired_at = "Never"
-            
-            input_mint_address = open_order['account']['inputMint']
-            input_mint_amount = int(open_order['account']['inAmount'])
-            input_mint_symbol = next((token.get("symbol", "") for token in tokens_list if input_mint_address == token.get("address", "")), None)
-            input_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if input_mint_address == token.get("address", "")), None))
-            
-            output_mint_address = open_order['account']['outputMint']
-            output_mint_amount = int(open_order['account']['outAmount'])
-            output_mint_symbol = next((token.get("symbol", "") for token in tokens_list if output_mint_address == token.get("address", "")), None)
-            output_mint_decimals = int(next((token.get("decimals", "") for token in tokens_list if output_mint_address == token.get("address", "")), None))
-            
-            open_orders[order_id] = {
-                'open_order_pubkey': open_order_pubkey, 
-                'expired_at': expired_at,
-                'input_mint': {
-                    'symbol': input_mint_symbol,
-                    'amount': input_mint_amount / 10 ** input_mint_decimals
-                },
-                'output_mint': {
-                    'symbol': output_mint_symbol,
-                    'amount': output_mint_amount / 10 ** output_mint_decimals
-                }
-            }
-            order_id += 1
-        
-        loading_spinner.stop()
-        return open_orders
-
-    @staticmethod
-    async def display_open_orders(wallet_address: str) -> dict:
-        """Displays current open orders and return open orders dict."""
-        loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
-        loading_spinner.start()
-        open_orders = await Jupiter_CLI.get_open_orders(wallet_address=wallet_address)
-        
-        data = {
-            'ID': [],
-            'EXPIRED AT': [],
-            'SELL TOKEN': [],
-            'BUY TOKEN': [],
-            'ACCOUNT ADDRESS': []
-        }
-        
-        for open_order_id, open_order_data in open_orders.items():
-            data['ID'].append(open_order_id)
-            data['EXPIRED AT'].append(open_order_data['expired_at'])
-            data['SELL TOKEN'].append(f"{open_order_data['input_mint']['amount']} ${open_order_data['input_mint']['symbol']}")
-            data['BUY TOKEN'].append(f"{open_order_data['output_mint']['amount']} ${open_order_data['output_mint']['symbol']}")
-            data['ACCOUNT ADDRESS'].append(open_order_data['open_order_pubkey'])
-            
-        dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
-        loading_spinner.stop()
-        
-        print(dataframe)
-        print()
-        return open_orders
 
     async def display_dca_accounts(self, wallet_address: str):
         loading_spinner = yaspin(text=f"{c.BLUE}Loading DCA Accounts{c.RESET}", color="blue")
@@ -1001,6 +964,107 @@ class Jupiter_CLI(Wallet):
         return dca_accounts
 
 
+    async def token_sniper_menu(self):
+        """Jupiter CLI - TOKEN SNIPER MENU."""
+        f.display_logo()
+        print("[JUPITER CLI] [TOKEN SNIPER MENU]")
+        print()
+    
+        token_sniper_menu_prompt_choices = await inquirer.select(message="Select menu:", choices=["Add a token to snipe", "Manage current tokens", "Back to main menu"]).execute_async()
+        
+        match token_sniper_menu_prompt_choices:
+            case "Add a token to snipe":
+                await self.add_token_snipe()
+                await self.main_menu()
+                return
+            case "Manage current tokens":
+                pass
+            case "Back to main menu":
+                await self.main_menu()
+                return
+
+    async def add_token_snipe(self):
+        """PROMPT ADD TOKEN TO SNIPE."""
+        f.display_logo()
+        print("[JUPITER CLI] [ADD TOKEN TO SNIPE]")
+        print()
+        
+        # token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
+        token_name = "SYMPHONY 9"
+        
+        while True:
+            # token_address = await inquirer.text(message="Enter token address:").execute_async()
+            token_address = "AyWu89SjZBW1MzkxiREmgtyMKxSkS1zVy8Uo23RyLphX"
+            try:
+                Pubkey.from_string(token_address)
+                break
+            except:
+                print(f"{c.RED}! Please enter a valid token address")
+        
+        # config_data = await Config_CLI.get_config_data()
+        # client = AsyncClient(endpoint=config_data['RPC_URL'])
+        # wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+        wallet_id = 1
+        # wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
+        # get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
+        # sol_price = f.get_crypto_price("SOL")
+        # sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
+        # sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
+        
+        # amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
+        amount_usd_to_buy = 10
+        
+        # take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True, min_allowed=float(amount_usd_to_buy)).execute_async()
+        take_profit_usd = 20
+        # stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(amount_usd_to_buy)).execute_async()
+        stop_loss_usd = 5
+        
+        # alerts = await inquirer.select(message=f"Alerts (Discord/Telegram)?", choices=["Yes", "No"]).execute_async()
+        
+        while True:
+            # confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
+            confirm = "Yes"
+            if confirm == "Yes":
+                year = 2024
+                # month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
+                month = 1
+                # day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
+                day = 1
+                print("Enter time in 24-hour format (HH:MM)")
+                # hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
+                hours = 17
+                # minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
+                minutes = 30
+                timestamp = int((datetime(2024, int(month), int(day), int(hours), int(minutes)).timestamp()))
+                
+                # confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
+                confirm = "Yes"
+                if confirm == "Yes":
+                    break
+            
+            elif confirm == "No":
+                timestamp = None
+                
+        print(f"SNIPE {token_name} ({token_address}) | BUY: ${amount_usd_to_buy} - STOPLOSS: ${stop_loss_usd} - TAKEPROFIT: ${take_profit_usd} | LAUNCH DATE: {month}-{day}-{year} {hours}:{minutes}")
+        confirm = await inquirer.select(message="Confirm token?", choices=["Yes", "No"]).execute_async()
+        if confirm == "Yes":
+            tokens_data = await Config_CLI.get_tokens_data()
+            token_data = {
+                'NAME': token_name,
+                'ADDRESS': token_address,
+                'WALLET': wallet_id,
+                'BUY_AMOUNT': amount_usd_to_buy,
+                'TAKE_PROFIT': take_profit_usd,
+                'STOP_LOSS': stop_loss_usd,
+                'TIMESTAMP': timestamp
+            }
+            tokens_data[len(tokens_data) + 1] = token_data
+            await Config_CLI.edit_tokens_file(tokens_data)
+            input(f"{c.GREEN}Token added to snipe!")
+        
+        return
+        
+    
 class Wallets_CLI():
     
     @staticmethod
@@ -1216,8 +1280,8 @@ class Wallets_CLI():
             case  "Back to main menu":
                 await Main_CLI.main_menu()
                 return
-        
-            
+
+    
 class Main_CLI():
     
     async def start_CLI():
