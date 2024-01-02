@@ -303,8 +303,6 @@ class Jupiter_CLI(Wallet):
             "Limit Order",
             "DCA",
             "Token Sniper",
-            "Lookup",
-            "Stats",
             "Change wallet",
             "Back to main menu",
         ]).execute_async()
@@ -461,7 +459,7 @@ class Jupiter_CLI(Wallet):
         elif confirm_swap == "No":
             return
     
-    
+    # LIMIT ORDERS
     async def limit_order_menu(self):
         """Jupiter CLI - LIMIT ORDER MENU."""
         loading_spinner = yaspin(text=f"{c.BLUE}Loading open limit orders{c.RESET}", color="blue")
@@ -761,7 +759,7 @@ class Jupiter_CLI(Wallet):
         print()
         return open_orders
 
-
+    # DCA #
     async def dca_menu(self):
         """Jupiter CLI - DCA MENU."""
         f.display_logo()
@@ -963,25 +961,70 @@ class Jupiter_CLI(Wallet):
         print()
         return dca_accounts
 
-
+    # TOKEN SNIPER #
     async def token_sniper_menu(self):
         """Jupiter CLI - TOKEN SNIPER MENU."""
         f.display_logo()
         print("[JUPITER CLI] [TOKEN SNIPER MENU]")
         print()
-    
-        token_sniper_menu_prompt_choices = await inquirer.select(message="Select menu:", choices=["Add a token to snipe", "Manage current tokens", "Back to main menu"]).execute_async()
+        
+        await Jupiter_CLI.display_tokens_snipe()
+
+        choices = [
+            "Add a token to snipe",
+            "Watch token",
+            "Edit tokens",
+            "Back to main menu",
+        ]
+        token_sniper_menu_prompt_choices = await inquirer.select(message="Select menu:", choices=choices).execute_async()
         
         match token_sniper_menu_prompt_choices:
             case "Add a token to snipe":
                 await self.add_token_snipe()
-                await self.main_menu()
+                await self.token_sniper_menu()
                 return
-            case "Manage current tokens":
-                pass
+            case "Edit tokens":
+                await self.edit_tokens_snipe()
+                await self.token_sniper_menu()
+                return
             case "Back to main menu":
                 await self.main_menu()
                 return
+
+    @staticmethod
+    async def display_tokens_snipe():
+        tokens_snipe = await Config_CLI.get_tokens_data()
+        
+        data = {
+            'ID': [],
+            'NAME': [],
+            'ADDRESS': [],
+            'WALLET': [],
+            'STATUS':[],
+            'BUY AMOUNT': [],
+            'TAKE PROFIT': [],
+            'STOP LOSS': [],
+            'TIMESTAMP': []
+        }
+
+        for token_id, token_data in tokens_snipe.items():
+            data['ID'].append(token_id)
+            data['NAME'].append(token_data['NAME'])
+            data['ADDRESS'].append(token_data['ADDRESS'])
+            data['WALLET'].append(token_data['WALLET'])
+            data['STATUS'].append(token_data['STATUS'])
+            data['BUY AMOUNT'].append(f"${token_data['BUY_AMOUNT']}")
+            data['TAKE PROFIT'].append(f"${token_data['TAKE_PROFIT']}")
+            data['STOP LOSS'].append(f"${token_data['STOP_LOSS']}")
+            if token_data['TIMESTAMP']:
+                data['TIMESTAMP'].append(datetime.fromtimestamp(token_data['TIMESTAMP']).strftime('%Y-%m-%d %H:%M:%S'))
+            else:
+                data['TIMESTAMP'].append("NO DATE LAUNCH")
+        
+        dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+        
+        print(dataframe)
+        print()
 
     async def add_token_snipe(self):
         """PROMPT ADD TOKEN TO SNIPE."""
@@ -1053,18 +1096,121 @@ class Jupiter_CLI(Wallet):
                 'NAME': token_name,
                 'ADDRESS': token_address,
                 'WALLET': wallet_id,
-                'BUY_AMOUNT': amount_usd_to_buy,
-                'TAKE_PROFIT': take_profit_usd,
-                'STOP_LOSS': stop_loss_usd,
+                'BUY_AMOUNT': float(amount_usd_to_buy),
+                'TAKE_PROFIT': float(take_profit_usd),
+                'STOP_LOSS': float(stop_loss_usd),
                 'TIMESTAMP': timestamp
             }
             tokens_data[len(tokens_data) + 1] = token_data
             await Config_CLI.edit_tokens_file(tokens_data)
-            input(f"{c.GREEN}Token added to snipe!")
+            input(f"{c.GREEN}Token added to snipe! ")
         
         return
-        
     
+    async def edit_tokens_snipe(self):
+        tokens_snipe = await Config_CLI.get_tokens_data()
+        choices = []
+        for token_id, token_data in tokens_snipe.items():
+            choices.append(f"ID {token_id}")
+        
+        prompt_select_token = await inquirer.select(message="Select token to edit:", choices=choices).execute_async()
+        selected_token = re.search(r'\d+', prompt_select_token).group()
+        
+        config_data = await Config_CLI.get_config_data()
+        wallets_data = await Wallets_CLI.get_wallets()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallets_data[str(tokens_snipe[token_id]['WALLET'])]['private_key'])
+        get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
+        sol_price = f.get_crypto_price("SOL")
+        sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
+        sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
+        
+        choices = [
+            "Name",
+            "Address",
+            "Selected Wallet",
+            "Buy Amount",
+            "Take Profit",
+            "Stop Loss",
+            "Timestamp",
+            "Delete",
+            "Back to main menu"
+        ]
+        
+        while True:
+            prompt_select_options = await inquirer.select(message="Select info to edit:", choices=choices).execute_async()
+            
+            match prompt_select_options:
+                case "Name":
+                    token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
+                    tokens_snipe[selected_token]['NAME'] = token_name
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Name changed!{c.RESET}")
+                case "Address":
+                    while True:
+                        token_address = await inquirer.text(message="Enter token address:").execute_async()
+                        try:
+                            Pubkey.from_string(token_address)
+                            break
+                        except:
+                            print(f"{c.RED}! Please enter a valid token address")
+                    tokens_snipe[selected_token]['ADDRESS'] = token_address
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Address changed{c.RESET}")
+                case "Selected Wallet":
+                    config_data = await Config_CLI.get_config_data()
+                    client = AsyncClient(endpoint=config_data['RPC_URL'])
+                    wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+                    tokens_snipe[selected_token]['WALLET'] = int(wallet_id)
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Selected Wallet {wallet_id}{c.RESET}")
+                case "Buy Amount":
+                    amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
+                    tokens_snipe[selected_token]['BUY_AMOUNT'] = float(amount_usd_to_buy)
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Buy Amount ${amount_usd_to_buy}{c.RESET}")
+                case "Take Profit":
+                    take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True, min_allowed=float(tokens_snipe[selected_token]['BUY_AMOUNT'])).execute_async()
+                    tokens_snipe[selected_token]['TAKE_PROFIT'] = float(take_profit_usd)
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Take Profit ${take_profit_usd}{c.RESET}")
+                case "Stop Loss":
+                    stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(tokens_snipe[selected_token]['BUY_AMOUNT'])).execute_async()
+                    tokens_snipe[selected_token]['STOP_LOSS'] = float(stop_loss_usd)
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Stop Loss ${stop_loss_usd}{c.RESET}")
+                case "Timestamp":
+                    while True:
+                            confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
+                            if confirm == "Yes":
+                                year = 2024
+                                month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
+                                day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
+                                print("Enter time in 24-hour format (HH:MM)")
+                                hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
+                                minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
+                                timestamp = int((datetime(2024, int(month), int(day), int(hours), int(minutes)).timestamp()))
+                                
+                                confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
+                                if confirm == "Yes":
+                                    break
+                            
+                            elif confirm == "No":
+                                timestamp = None
+                                break
+                            
+                    tokens_snipe[selected_token]['TIMESTAMP'] = timestamp
+                    await Config_CLI.edit_tokens_file(tokens_snipe)
+                    print(f"{c.GREEN}Token ID {selected_token}: Timestamp changed{c.RESET}")
+                case "Delete":
+                    confirm = await inquirer.select(message=f"Confirm delete token ID {selected_token}?", choices=["Yes", "No"]).execute_async()
+                    if confirm == "Yes":
+                        del tokens_snipe[selected_token]
+                        await Config_CLI.edit_tokens_file(tokens_snipe)
+                        print(f"{c.GREEN}Token ID deleted{c.RESET}")
+                case "Back to main menu":
+                    break
+
 class Wallets_CLI():
     
     @staticmethod
