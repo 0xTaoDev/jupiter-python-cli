@@ -6,7 +6,8 @@ import time
 import re
 import httpx
 import asyncio
-from  multiprocessing import Process, Queue
+from  multiprocessing import Process
+import random
 
 from datetime import datetime, timedelta
 
@@ -286,43 +287,34 @@ class Wallet():
         await inquirer.text(message="\nPress ENTER to continue").execute_async()
         return
             
-
-def snipe_token(token_id: str, token_data: dict):
-    """Initiates snipe token instance"""
-    Token_Sniper(token_id, token_data)
-    return
-    
 token_sniper_instances = []
 class Token_Sniper():
     
-    verbose = False
+    def __init__(self, token_id, token_data):
+        self.token_id = token_id
+        self.token_data = token_data
+        self.log = None
     
-    def __init__(self, token_id, token_data) -> None:
-        self.snipe_token(token_id, token_data)
-        token_sniper_instances.append(self)
-        return
-    
-    async def snipe_token_async(self, token_id: str, token_data: dict):
+    def snipe_token(self):
+        log = ["yo", "fdd", "fjksdjfds", "fdsjsfjds"]
         while True:
-            if self.verbose:
-                print(token_id, token_data)
-                
-            await asyncio.sleep(1)
-        
-    def snipe_token(self, token_id: str, token_data: str):
-        """Starts sniper token async function"""
-        asyncio.run(self.snipe_token_async(token_id, token_data))
-    
+            self.log = random.choice(log)
+            time.sleep(2)
+            
     @staticmethod
     async def run():
         """Starts all the sniper token instance"""
         tokens_snipe = await Config_CLI.get_tokens_data()
-        token_sniper_processess = []
+        snipers_processes = []
         for token_id, token_data in tokens_snipe.items():
-            token_sniper_process = Process(target=snipe_token, args=(token_id, token_data,))
-            token_sniper_processess.append(token_sniper_process)
-            token_sniper_process.start()
-        return
+            if token_data['STATUS'] == "NOT IN":
+                token_sniper_instance = Token_Sniper(token_id, token_data)
+                token_sniper_instances.append(token_sniper_instance)
+                process = Process(target=token_sniper_instance.snipe_token, args=())
+                snipers_processes.append(process)
+            
+        for sniper_process in snipers_processes:
+            sniper_process.start()
     
 
 class Jupiter_CLI(Wallet):
@@ -497,6 +489,7 @@ class Jupiter_CLI(Wallet):
         
         elif confirm_swap == "No":
             return
+    
     
     # LIMIT ORDERS
     async def limit_order_menu(self):
@@ -798,6 +791,7 @@ class Jupiter_CLI(Wallet):
         print()
         return open_orders
 
+
     # DCA #
     async def dca_menu(self):
         """Jupiter CLI - DCA MENU."""
@@ -1000,6 +994,7 @@ class Jupiter_CLI(Wallet):
         print()
         return dca_accounts
 
+
     # TOKEN SNIPER #
     async def token_sniper_menu(self):
         """Jupiter CLI - TOKEN SNIPER MENU."""
@@ -1020,6 +1015,10 @@ class Jupiter_CLI(Wallet):
         match token_sniper_menu_prompt_choices:
             case "Add a token to snipe":
                 await self.add_token_snipe()
+                await self.token_sniper_menu()
+                return
+            case "Watch token":
+                await self.watch()
                 await self.token_sniper_menu()
                 return
             case "Edit tokens":
@@ -1250,6 +1249,18 @@ class Jupiter_CLI(Wallet):
                 case "Back to main menu":
                     break
 
+    async def watch(self):
+        choices = [f"ID {token_sniper_instance.token_id}" for token_sniper_instance in token_sniper_instances]
+        select_token = await inquirer.select(f"Select token to watch:", choices=choices).execute_async()
+        selected_token = re.search(r'\d+', select_token).group()
+        
+        previous_log = None
+        while True:
+            next_log = token_sniper_instances[int(selected_token)].log
+            if previous_log != next_log:
+                print(next_log)
+                previous_log = next_log
+                asyncio.sleep(1)
 
 class Wallets_CLI():
     
@@ -1501,6 +1512,7 @@ class Main_CLI():
         """Main menu for CLI."""
         f.display_logo()
         print("Welcome to the Jupiter Python CLI v.0.0.1! Made by @_TaoDev_\n")
+        print(token_sniper_instances)
         cli_prompt_main_menu = await inquirer.select(message="Select menu:", choices=[
             "Jupiter Exchange",
             "Manage Wallets",
@@ -1592,27 +1604,8 @@ class Main_CLI():
                 exit()
         
 
-async def start_CLI_async():
-    await Main_CLI.start_CLI()
-    return
-    
-def start_CLI():
-    asyncio.run(start_CLI_async())
-    return
-
-
-async def start_token_sniper_async():
-    await Token_Sniper.run()
-    return
-    
-def start_token_sniper():
-    asyncio.run(start_token_sniper_async())
-    return
-
-
 if __name__ == "__main__":
     print(f"{c.BLUE}STARTING CLI...{c.RESET}")
     load_dotenv()
-    token_sniper_process = Process(target=start_token_sniper).start()
-    main_cli_process = Process(target=start_CLI).start()
-    
+    asyncio.run(Token_Sniper.run())
+    asyncio.run(Main_CLI.start_CLI())

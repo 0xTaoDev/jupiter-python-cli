@@ -2,6 +2,7 @@ from pyfiglet import Figlet
 import json
 import httpx
 
+
 def display_logo() -> None:
     """Display Jupiter CLI logo."""
     print("\033c\n", end="")
