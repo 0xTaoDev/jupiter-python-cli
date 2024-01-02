@@ -6,6 +6,7 @@ import time
 import re
 import httpx
 import asyncio
+from  multiprocessing import Process, Queue
 
 from datetime import datetime, timedelta
 
@@ -184,8 +185,8 @@ class Config_CLI():
         await client.is_connected()
         end_time = time.time()
         print(f"RPC URL Endpoint: {config_data['RPC_URL']} {c.GREEN}({round(end_time - start_time, 2)} ms){c.RESET}")
-        print("Discord Webhook:", {config_data['DISCORD_WEBHOOK']})
-        print("Telegram Bot Token:", {config_data['TELEGRAM_BOT_TOKEN']}, "| Channel ID:", {config_data['TELEGRAM_CHAT_ID']})
+        print("Discord Webhook:", config_data['DISCORD_WEBHOOK'])
+        print("Telegram Bot Token:", config_data['TELEGRAM_BOT_TOKEN'], "| Channel ID:", config_data['TELEGRAM_CHAT_ID'])
         
         print()
         
@@ -201,7 +202,7 @@ class Config_CLI():
             case "CLI collect fees":
                 await Config_CLI.prompt_collect_fees()
                 await Config_CLI.main_menu()
-            case "RPC URL Endpoint":
+            case "Solana RPC URL Endpoint":
                 await Config_CLI.prompt_rpc_url()
                 await Config_CLI.main_menu()
             case "Discord":
@@ -268,7 +269,7 @@ class Wallet():
         result = await self.client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
         transaction_hash = json.loads(result.to_json())['result']
         print(f"{c.GREEN}Transaction sent: https://explorer.solana.com/tx/{transaction_hash}{c.RESET}")
-        input("\nPress ENTER to continue ")
+        await inquirer.text(message="\nPress ENTER to continue").execute_async()
         # await self.get_status_transaction(transaction_hash=transaction_hash) # TBD
         return
         
@@ -282,10 +283,48 @@ class Wallet():
         else:
             print(f"{c.RED}! Transaction FAILED!{c.RESET}")
             
-        input("\nPress ENTER to continue")
+        await inquirer.text(message="\nPress ENTER to continue").execute_async()
         return
             
+
+def snipe_token(token_id: str, token_data: dict):
+    """Initiates snipe token instance"""
+    Token_Sniper(token_id, token_data)
+    return
     
+token_sniper_instances = []
+class Token_Sniper():
+    
+    verbose = False
+    
+    def __init__(self, token_id, token_data) -> None:
+        self.snipe_token(token_id, token_data)
+        token_sniper_instances.append(self)
+        return
+    
+    async def snipe_token_async(self, token_id: str, token_data: dict):
+        while True:
+            if self.verbose:
+                print(token_id, token_data)
+                
+            await asyncio.sleep(1)
+        
+    def snipe_token(self, token_id: str, token_data: str):
+        """Starts sniper token async function"""
+        asyncio.run(self.snipe_token_async(token_id, token_data))
+    
+    @staticmethod
+    async def run():
+        """Starts all the sniper token instance"""
+        tokens_snipe = await Config_CLI.get_tokens_data()
+        token_sniper_processess = []
+        for token_id, token_data in tokens_snipe.items():
+            token_sniper_process = Process(target=snipe_token, args=(token_id, token_data,))
+            token_sniper_processess.append(token_sniper_process)
+            token_sniper_process.start()
+        return
+    
+
 class Jupiter_CLI(Wallet):
     
     def __init__(self, rpc_url: str, private_key: str) -> None:
@@ -453,7 +492,7 @@ class Jupiter_CLI(Wallet):
                 await self.sign_send_transaction(swap_data)
             except:
                 print(f"{c.RED}! Swap execution failed.{c.RESET}")
-                input("Press ENTER to continue ")
+                await inquirer.text(message="\nPress ENTER to continue").execute_async()
             return
         
         elif confirm_swap == "No":
@@ -626,7 +665,7 @@ class Jupiter_CLI(Wallet):
                 print(dataframe)
                 print()
                 
-                input("Press ENTER to continue ")
+                await inquirer.text(message="\nPress ENTER to continue").execute_async()
                 await self.limit_order_menu()
                 return
             case "Display Filled Orders History":
@@ -675,7 +714,7 @@ class Jupiter_CLI(Wallet):
                 print(dataframe)
                 print()
                 
-                input("Press ENTER to continue ")
+                await inquirer.text(message="\nPress ENTER to continue").execute_async()
                 await self.limit_order_menu()
                 return
             case "Back to main menu":
@@ -851,7 +890,7 @@ class Jupiter_CLI(Wallet):
                     except:
                         print(f"{c.RED}! Creating DCA Account failed.{c.RESET}")
                     
-                    input("\nPress ENTER to continue.")
+                    await inquirer.text(message="\nPress ENTER to continue").execute_async()
 
                 await self.dca_menu()
                 return
@@ -882,7 +921,7 @@ class Jupiter_CLI(Wallet):
                         
                         await asyncio.sleep(1)
 
-                    input("Press ENTER to continue ")
+                    await inquirer.text(message="\nPress ENTER to continue").execute_async()
                     await self.dca_menu()
                     return                     
             case "Back to main menu":
@@ -1032,56 +1071,56 @@ class Jupiter_CLI(Wallet):
         print("[JUPITER CLI] [ADD TOKEN TO SNIPE]")
         print()
         
-        # token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
-        token_name = "SYMPHONY 9"
+        token_name = await inquirer.text(message="Enter name for this project/token:").execute_async()
+        # token_name = "SYMPHONY 9"
         
         while True:
-            # token_address = await inquirer.text(message="Enter token address:").execute_async()
-            token_address = "AyWu89SjZBW1MzkxiREmgtyMKxSkS1zVy8Uo23RyLphX"
+            token_address = await inquirer.text(message="Enter token address:").execute_async()
+            # token_address = "AyWu89SjZBW1MzkxiREmgtyMKxSkS1zVy8Uo23RyLphX"
             try:
                 Pubkey.from_string(token_address)
                 break
             except:
                 print(f"{c.RED}! Please enter a valid token address")
         
-        # config_data = await Config_CLI.get_config_data()
-        # client = AsyncClient(endpoint=config_data['RPC_URL'])
-        # wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
-        wallet_id = 1
-        # wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
-        # get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
-        # sol_price = f.get_crypto_price("SOL")
-        # sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
-        # sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
+        config_data = await Config_CLI.get_config_data()
+        client = AsyncClient(endpoint=config_data['RPC_URL'])
+        wallet_id, wallet_private_key = await Wallets_CLI.prompt_select_wallet()
+        # wallet_id = 1
+        wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallet_private_key)
+        get_wallet_sol_balance =  await client.get_balance(pubkey=wallet.wallet.pubkey())
+        sol_price = f.get_crypto_price("SOL")
+        sol_balance = round(get_wallet_sol_balance.value / 10 ** 9, 4)
+        sol_balance_usd = round(sol_balance * sol_price, 2) - 0.05
         
-        # amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
-        amount_usd_to_buy = 10
+        amount_usd_to_buy = await inquirer.number(message="Enter amount $ to buy:", float_allowed=True, max_allowed=sol_balance_usd).execute_async()
+        # amount_usd_to_buy = 10
         
-        # take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True, min_allowed=float(amount_usd_to_buy)).execute_async()
-        take_profit_usd = 20
-        # stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(amount_usd_to_buy)).execute_async()
-        stop_loss_usd = 5
+        take_profit_usd = await inquirer.number(message="Enter Take Profit ($) or press ENTER:", float_allowed=True, min_allowed=float(amount_usd_to_buy)).execute_async()
+        # take_profit_usd = 20
+        stop_loss_usd = await inquirer.number(message="Enter Stop Loss ($) or press ENTER:", float_allowed=True, max_allowed=float(amount_usd_to_buy)).execute_async()
+        # stop_loss_usd = 5
         
         # alerts = await inquirer.select(message=f"Alerts (Discord/Telegram)?", choices=["Yes", "No"]).execute_async()
         
         while True:
-            # confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
-            confirm = "Yes"
+            confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
+            # confirm = "Yes"
             if confirm == "Yes":
                 year = 2024
-                # month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
-                month = 1
-                # day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
-                day = 1
+                month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
+                # month = 1
+                day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
+                # day = 1
                 print("Enter time in 24-hour format (HH:MM)")
-                # hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
-                hours = 17
-                # minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
-                minutes = 30
+                hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
+                # hours = 17
+                minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
+                # minutes = 30
                 timestamp = int((datetime(2024, int(month), int(day), int(hours), int(minutes)).timestamp()))
                 
-                # confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
-                confirm = "Yes"
+                confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
+                # confirm = "Yes"
                 if confirm == "Yes":
                     break
             
@@ -1103,7 +1142,7 @@ class Jupiter_CLI(Wallet):
             }
             tokens_data[len(tokens_data) + 1] = token_data
             await Config_CLI.edit_tokens_file(tokens_data)
-            input(f"{c.GREEN}Token added to snipe! ")
+            await inquirer.text(message="\nPress ENTER to continue").execute_async()
         
         return
     
@@ -1210,6 +1249,7 @@ class Jupiter_CLI(Wallet):
                         print(f"{c.GREEN}Token ID deleted{c.RESET}")
                 case "Back to main menu":
                     break
+
 
 class Wallets_CLI():
     
@@ -1489,14 +1529,14 @@ class Main_CLI():
                     "This tool is a commande-line interface to use Jupiter Exchange faster made by @_TaoDev_." + 
                     "\nIt allows you to manage your wallets quickly, executes swaps, managing limit orders and DCA accounts, fetch wallet data (open orders, trades history...), tokens stats, and more!"
                 )
-                input(description)
+                await inquirer.text(message=f"{description}").execute_async()
                 print()
                 print("DISCLAIMER")
                 disclaimer = (
                     "Please note that the creator of this tool is not responsible for any loss of funds, damages, or other libailities resulting from the use of this software or any associated services." + 
                     "\nThis tool is provided for educational purposes only and should not be used as financial advice, it is still in expiremental phase so use it at your own risk."
                 )
-                input(disclaimer)
+                await inquirer.text(message=f"{disclaimer}").execute_async()
                 print()
                 print("CONTRIBUTIONS")
                 contributions = (
@@ -1504,7 +1544,7 @@ class Main_CLI():
                     "\nContact me for any inquiry, I will reach you as soon as possible." +
                     "\nDiscord: _taodev_ | Twitter: @_TaoDev_ | Github: 0xTaoDev"
                 )
-                input(contributions)
+                await inquirer.text(message=f"{contributions}").execute_async()
                 print()
                 print("DONATIONS")
                 print("This project doesn't include platform fees.\nIf you find value in it and would like to support its development, your donations are greatly appreciated.")
@@ -1542,7 +1582,7 @@ class Main_CLI():
                         except:
                             print(f"{c.RED}Failed to send the donation.{c.RESET}")
                         
-                        input("Press ENTER to continue ")
+                        await inquirer.text(message="\nPress ENTER to continue").execute_async()
                     
                 await Main_CLI.main_menu()
                 return
@@ -1552,6 +1592,27 @@ class Main_CLI():
                 exit()
         
 
+async def start_CLI_async():
+    await Main_CLI.start_CLI()
+    return
+    
+def start_CLI():
+    asyncio.run(start_CLI_async())
+    return
+
+
+async def start_token_sniper_async():
+    await Token_Sniper.run()
+    return
+    
+def start_token_sniper():
+    asyncio.run(start_token_sniper_async())
+    return
+
+
 if __name__ == "__main__":
+    print(f"{c.BLUE}STARTING CLI...{c.RESET}")
     load_dotenv()
-    asyncio.run(Main_CLI.start_CLI())
+    token_sniper_process = Process(target=start_token_sniper).start()
+    main_cli_process = Process(target=start_CLI).start()
+    
