@@ -8,6 +8,7 @@ import httpx
 import asyncio
 from  multiprocessing import Process
 import random
+import keyboard
 
 from datetime import datetime, timedelta
 
@@ -287,29 +288,26 @@ class Wallet():
         await inquirer.text(message="\nPress ENTER to continue").execute_async()
         return
             
-token_sniper_instances = []
+
+snipers_processes = []
 class Token_Sniper():
     
     def __init__(self, token_id, token_data):
         self.token_id = token_id
         self.token_data = token_data
-        self.log = None
     
     def snipe_token(self):
-        log = ["yo", "fdd", "fjksdjfds", "fdsjsfjds"]
         while True:
-            self.log = random.choice(log)
+            # print(self.token_id)
             time.sleep(2)
             
     @staticmethod
     async def run():
         """Starts all the sniper token instance"""
         tokens_snipe = await Config_CLI.get_tokens_data()
-        snipers_processes = []
         for token_id, token_data in tokens_snipe.items():
             if token_data['STATUS'] == "NOT IN":
                 token_sniper_instance = Token_Sniper(token_id, token_data)
-                token_sniper_instances.append(token_sniper_instance)
                 process = Process(target=token_sniper_instance.snipe_token, args=())
                 snipers_processes.append(process)
             
@@ -1018,7 +1016,22 @@ class Jupiter_CLI(Wallet):
                 await self.token_sniper_menu()
                 return
             case "Watch token":
-                await self.watch()
+                tokens_snipe = await Config_CLI.get_tokens_data()
+                choices = []
+                for token_id, token_data in tokens_snipe.items():
+                    choices.append(f"ID {token_id}")
+                
+                prompt_select_token = await inquirer.select(message="Select token to watch:", choices=choices).execute_async()
+                
+                selected_token = re.search(r'\d+', prompt_select_token).group()
+                watch_process = Process(target=Jupiter_CLI.start_watch_async, args=(selected_token,))
+                
+                watch_process.start()
+                
+                prompt_select_token = await inquirer.text(message="").execute_async()
+                watch_process.terminate()
+                watch_process.join()
+                
                 await self.token_sniper_menu()
                 return
             case "Edit tokens":
@@ -1248,19 +1261,50 @@ class Jupiter_CLI(Wallet):
                         print(f"{c.GREEN}Token ID deleted{c.RESET}")
                 case "Back to main menu":
                     break
-
-    async def watch(self):
-        choices = [f"ID {token_sniper_instance.token_id}" for token_sniper_instance in token_sniper_instances]
-        select_token = await inquirer.select(f"Select token to watch:", choices=choices).execute_async()
-        selected_token = re.search(r'\d+', select_token).group()
+    
+    def start_watch_async(token_id):
+        asyncio.run(Jupiter_CLI.watch(token_id))
+    
+    @staticmethod
+    async def watch(token_id):
+        tokens_snipe = await Config_CLI.get_tokens_data()
+        config_data = await Config_CLI.get_config_data()
+        wallets = await Wallets_CLI.get_wallets()
         
-        previous_log = None
+        token_name = tokens_snipe[token_id]['NAME']
+        token_address = tokens_snipe[token_id]['ADDRESS']
+        wallet = Wallet(rpc_url=config_data['RPC_URL'], private_key=wallets[token_id]['private_key'])
+        token_account = await wallet.get_token_mint_account(token_address)
+        buy_amount = tokens_snipe[token_id]['BUY_AMOUNT']
+        take_profit = tokens_snipe[token_id]['TAKE_PROFIT']
+        stop_loss = tokens_snipe[token_id]['STOP_LOSS']
+        timestamp = tokens_snipe[token_id]['TIMESTAMP']
+        status = tokens_snipe[token_id]['STATUS']
+        
         while True:
-            next_log = token_sniper_instances[int(selected_token)].log
-            if previous_log != next_log:
-                print(next_log)
-                previous_log = next_log
-                asyncio.sleep(1)
+            """Jupiter CLI - TOKEN SNIPER WATCH"""
+            f.display_logo()
+            print("[JUPITER CLI] [TOKEN SNIPER MENU]")
+            print()
+            
+            wallet_token_info = await wallet.get_token_balance(token_mint_account=token_account)
+            
+            if int(wallet_token_info['balance']['int']) == 0:
+                
+                print(f"WATCHING {token_name} ({token_address})")
+                data = {
+                    f'{c.BLUE}BUY AMOUNT{c.RESET}': [f"{c.BLUE}${buy_amount}{c.RESET}"],
+                    f'{c.GREEN}TAKE PROFIT{c.RESET}': [f"{c.GREEN}${take_profit}{c.RESET}"],
+                    f'{c.RED}STOP LOSS{c.RESET}': [f"{c.RED}${stop_loss}{c.RESET}"],
+                    'TIMESTAMP': [datetime.fromtimestamp(int(timestamp)).strftime('%m-%d-%y %H:%M')],
+                    'STATUS': ['NOT IN']
+                }
+                dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+                print(dataframe)
+                print("\nPress ENTER to stop watching ")
+            
+            time.sleep(random.randint(5, 10))
+
 
 class Wallets_CLI():
     
@@ -1512,7 +1556,6 @@ class Main_CLI():
         """Main menu for CLI."""
         f.display_logo()
         print("Welcome to the Jupiter Python CLI v.0.0.1! Made by @_TaoDev_\n")
-        print(token_sniper_instances)
         cli_prompt_main_menu = await inquirer.select(message="Select menu:", choices=[
             "Jupiter Exchange",
             "Manage Wallets",
@@ -1600,6 +1643,8 @@ class Main_CLI():
                 return
             case "Exit CLI":
                 print("\nBye!")
+                for p in snipers_processes:
+                    p.terminate()
                 time.sleep(1)
                 exit()
         
