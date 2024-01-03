@@ -1278,8 +1278,11 @@ class Jupiter_CLI(Wallet):
         buy_amount = tokens_snipe[token_id]['BUY_AMOUNT']
         take_profit = tokens_snipe[token_id]['TAKE_PROFIT']
         stop_loss = tokens_snipe[token_id]['STOP_LOSS']
+        slippage_bps = tokens_snipe[token_id]['SLIPPAGE_BPS']
         timestamp = tokens_snipe[token_id]['TIMESTAMP']
-        status = tokens_snipe[token_id]['STATUS']
+        
+        async_client = AsyncClient(config_data['RPC_URL'])
+        jupiter = Jupiter(async_client, wallets[token_id]['private_key'])
         
         while True:
             """Jupiter CLI - TOKEN SNIPER WATCH"""
@@ -1288,10 +1291,14 @@ class Jupiter_CLI(Wallet):
             print()
             
             wallet_token_info = await wallet.get_token_balance(token_mint_account=token_account)
+            print(f"WATCHING {token_name} ({token_address})")
+            loading_spinner = yaspin(text=f"{c.BLUE}Loading token data{c.RESET}", color="blue")
+            loading_spinner.start()
+        
+            sol_price = f.get_crypto_price('SOL')
             
             if int(wallet_token_info['balance']['int']) == 0:
                 
-                print(f"WATCHING {token_name} ({token_address})")
                 data = {
                     f'{c.BLUE}BUY AMOUNT{c.RESET}': [f"{c.BLUE}${buy_amount}{c.RESET}"],
                     f'{c.GREEN}TAKE PROFIT{c.RESET}': [f"{c.GREEN}${take_profit}{c.RESET}"],
@@ -1300,10 +1307,52 @@ class Jupiter_CLI(Wallet):
                     'STATUS': ['NOT IN']
                 }
                 dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
-                print(dataframe)
-                print("\nPress ENTER to stop watching ")
+                
+            elif int(wallet_token_info['balance']['int']) > 0:
+                
+                get_out_amount = await jupiter.quote(
+                    input_mint=token_address,
+                    output_mint='So11111111111111111111111111111111111111112',
+                    amount=wallet_token_info['balance']['int'],
+                    slippage_bps=slippage_bps
+                )
+                out_amount = int(get_out_amount['outAmount']) / 10 ** 9 * sol_price
+                
+                amount_token = round(wallet_token_info['balance']['float'], 5)
+                amount_usd = round(out_amount, 2)
+                pnl_usd = round(amount_usd - buy_amount, 2)
+                if pnl_usd > 0:
+                    pnl_usd_title = f"{c.GREEN}PnL ${c.RESET}"
+                    pnl_usd = f"{c.GREEN}${pnl_usd}{c.RESET}"
+                else:
+                    pnl_usd_title = f"{c.RED}PnL ${c.RESET}"
+                    pnl_usd = f"{c.RED}${pnl_usd}{c.RESET}"
+                    
+                pnl_percentage = round((amount_usd - buy_amount)/buy_amount*100, 2)
+                if pnl_percentage > 0:
+                    pnl_percentage_title = f"{c.GREEN}PnL %{c.RESET}"
+                    pnl_percentage = f"{c.GREEN}{pnl_percentage}%{c.RESET}"
+                else:
+                    pnl_percentage_title = f"{c.RED}PnL %{c.RESET}"
+                    pnl_percentage = f"{c.RED}{pnl_percentage}%{c.RESET}"
+                
+                data = {
+                    f'{c.BLUE}AMOUNT ${token_name}{c.RESET}': [f"{c.BLUE}{amount_token}{c.RESET}"],
+                    f'{c.BLUE}AMOUNT USD{c.RESET}': [f"{c.BLUE}${amount_usd}{c.RESET}"],
+                    f'{c.GREEN}TAKE PROFIT{c.RESET}': [f"{c.GREEN}${take_profit}{c.RESET}"],
+                    f'{c.RED}STOP LOSS{c.RESET}': [f"{c.RED}${stop_loss}{c.RESET}"],
+                    f'{pnl_usd_title}': [f'{pnl_usd}'],
+                    f'{pnl_percentage_title}': [f'{pnl_percentage}']
+                    
+                }
+                dataframe = tabulate(pd.DataFrame(data), headers="keys", tablefmt="fancy_grid", showindex="never", numalign="center")
+                
             
-            time.sleep(random.randint(5, 10))
+            loading_spinner.stop()
+            sleep_time = random.uniform(5, 10)
+            print(dataframe)
+            print(f"\nRefresh in {round(sleep_time, 2)} secs\nPress ENTER to stop watching ")
+            time.sleep(sleep_time)
 
 
 class Wallets_CLI():
