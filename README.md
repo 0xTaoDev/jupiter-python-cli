@@ -47,7 +47,7 @@ python -m venv env
 python main.py
 ```
 
-### 🗺️ CLI Overview
+# 🗺️ CLI Overview
 ```
 CLI
 │
@@ -76,6 +76,30 @@ CLI
 ├── About
 └── Exit CLI
 ```
+
+# 🤖 Sniper Bot
+**In top of most of the Jupiter features that you can use, you are also able to snipe token.**<br>
+❗**Please note that Sniper Bot is experimental and subject to change as there might be issues that I didn't see.**
+### Add a token to snipe
+- Token/Project name
+- Token Address
+- Amount ($) to buy
+- Take Profit ($)
+- Stop Loss ($)
+- Slippage (%)
+
+If token has a launch date:
+- Month
+- Day
+- Hours
+- Minutes
+### Watch token
+You can watch your trading position by selecting the token.
+<div align="left">
+    <img src="https://github.com/0xTaoDev/jupiter-python-cli/blob/main/images/sniper_bot_watch?raw=true" width="25%" height="25%">
+</div>
+### Ed
+
 # 🚨 Known bugs
 ### ImportError: sync_native from spl.token.instructions
 1. Go to https://github.com/michaelhly/solana-py/tree/master/src/spl/token and download ```instructions.py```
@@ -88,7 +112,6 @@ CLI
 - [ ] Display tokens owned 🪙
 - [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
-
 
 # 🤝 Contributions
 If you are interesting in contributing, fork the repository and submit a pull request in order to merge your improvements into the main repository.<br>
