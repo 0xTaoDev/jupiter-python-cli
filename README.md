@@ -117,6 +117,16 @@ You can modify token info as follow:
 - Launch date
 - Delete
 
+# 🗨️ Q&A
+### Where are my private keys?
+Your private keys are stored in `wallets.json`.
+### Is there any fees when swapping using CLI?
+There are no additional fees in the CLI when performing swaps via the CLI; the costs should be the same as using the Jupiter UI.
+### Does sniper bot remains running if I close the CLI?
+If you close the CLI, the sniper bot will stop running.
+### Is it possible to swap any tokens?
+You can only swap tokens that are listed on Jupiter based on their criterias.
+
 # 🚨 Known bugs
 ### ImportError: sync_native from spl.token.instructions
 1. Go to https://github.com/michaelhly/solana-py/tree/master/src/spl/token and download ```instructions.py```
@@ -131,6 +141,8 @@ You can modify token info as follow:
 - [ ] Wallet Duplication detection
 - [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
+- [ ] Bridge 🌉
+- [ ] Perpetual 💸
 
 # 🤝 Contributions
 If you are interesting in contributing, fork the repository and submit a pull request in order to merge your improvements into the main repository.<br>
