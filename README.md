@@ -135,6 +135,7 @@ You can modify token info as follow:
 ### Invalid DCA Accounts listed (and cannot be deleted)
 ### Discord Webhook or Telegram API not being added in `config.json`
 ### Duplicating menus when resizing the window
+### Sniper Bot: it's taking 10-20 seconds to get real trade position info after a swap route is found and executed
 
 # 📝 TO-DO
 - [ ] Clean up code ⚡
