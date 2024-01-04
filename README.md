@@ -138,6 +138,7 @@ You can modify token info as follow:
 
 # 📝 TO-DO
 - [ ] Clean up code ⚡
+- [ ] Add docstrings
 - [ ] Display tokens owned 🪙
 - [ ] Favorite tokens displayed in first tokens for swap/limit orders/dca... ⭐
 - [ ] Wallet Duplication detection
