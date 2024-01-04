@@ -1,18 +1,14 @@
 import json
 import base58
 import base64
-import os
 import time
 import re
 import httpx
 import asyncio
 from  multiprocessing import Process
 import random
-import keyboard
 
-from datetime import datetime, timedelta
-
-from dotenv import load_dotenv
+from datetime import datetime
 
 from InquirerPy import inquirer
 
@@ -144,7 +140,7 @@ class Config_CLI():
                 await Config_CLI.prompt_rpc_url()
                 return
 
-        return
+        return rpc_url
     
     @staticmethod
     async def prompt_discord_webhook():
@@ -158,13 +154,18 @@ class Config_CLI():
             if confirm == "Yes":
                 config_data['DISCORD_WEBHOOK'] = discord_webhook
                 await Config_CLI.edit_config_file(config_data=config_data)
-                return
+                f.send_discord_alert("Discord Alert added!")
+                
+                confirm = await inquirer.select(message="Is message sent in the Discord channel?", choices=["Yes", "No"]).execute_async()
+                if confirm == "No":
+                    await Config_CLI.prompt_discord_webhook()
+                    return
             
             elif confirm == "No":
                 await Config_CLI.prompt_discord_webhook()
                 return
         
-        return
+        return discord_webhook
     
     @staticmethod
     async def prompt_telegram_api():
@@ -185,6 +186,13 @@ class Config_CLI():
                     if confirm == "Yes":
                         config_data['TELEGRAM_CHAT_ID'] = int(telegram_bot_token)
                         await Config_CLI.edit_config_file(config_data=config_data)
+                        f.send_telegram_alert("Telegram Alert added!")
+                
+                        confirm = await inquirer.select(message="Is message sent in the Telegram channel?", choices=["Yes", "No"]).execute_async()
+                        if confirm == "No":
+                            await Config_CLI.prompt_telegram_api()
+                            return
+                        
                         break
                 
                 return
@@ -437,9 +445,15 @@ class Token_Sniper():
                 if self.success is True:
                     tokens_data[self.token_id]['STATUS'] = "IN"
                     self.token_data['STATUS'] = "IN"
+                    alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): IN"
+                    f.send_discord_alert(alert_message)
+                    f.send_telegram_alert(alert_message)
                 else:
                     tokens_data[self.token_id]['STATUS'] = "ERROR ON SWAPPING"
                     self.token_data['STATUS'] = "ERROR WHEN SWAPPING"
+                    alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): BUY FAILED"
+                    f.send_discord_alert(alert_message)
+                    f.send_telegram_alert(alert_message)
                 Config_CLI.edit_tokens_file_no_async(tokens_data)
             
             elif self.token_data['STATUS'] not in ["NOT IN", "ERROR WHEN SWAPPING"] and not self.token_data['STATUS'].startswith('> '):
@@ -464,8 +478,14 @@ class Token_Sniper():
                         
                         if amount_usd < self.token_data['STOP_LOSS']:
                             tokens_data[self.token_id]['STATUS'] = f"> STOP LOSS"
+                            alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): STOP LOSS @ ${amount_usd}"
+                            f.send_discord_alert(alert_message)
+                            f.send_telegram_alert(alert_message)
                         elif amount_usd > self.token_data['TAKE_PROFIT']:
                             tokens_data[self.token_id]['STATUS'] = f"> TAKE PROFIT"
+                            alert_message = f"{self.token_data['NAME']} ({self.token_data['ADDRESS']}): TAKE PROFIT @ ${amount_usd}"
+                            f.send_discord_alert(alert_message)
+                            f.send_telegram_alert(alert_message)
                         
                         Config_CLI.edit_tokens_file_no_async(tokens_data)
                         break
@@ -1465,15 +1485,15 @@ class Jupiter_CLI(Wallet):
                     if confirm == "Yes":
                         del tokens_snipe[selected_token]
                         await Config_CLI.edit_tokens_file(tokens_snipe)
-                        print(f"{c.GREEN}Token ID deleted{c.RESET}")
+                        break
                 case "Back to main menu":
                     break
             
-            # Restart Token Snipers processes to apply the changes
-            for p in snipers_processes:
-                p.terminate()
-            snipers_processes.clear()
-            await Token_Sniper.run()
+        # Restart Token Snipers processes to apply the changes
+        for p in snipers_processes:
+            p.terminate()
+        snipers_processes.clear()
+        await Token_Sniper.run()
     
     def start_watch_async(token_id):
         asyncio.run(Jupiter_CLI.watch(token_id))
@@ -1808,7 +1828,7 @@ class Main_CLI():
             await Wallets_CLI.prompt_add_wallet()
             
             config_data['FIRST_LOGIN'] = False
-            config_data['LAST_WALLET_SELECTED'] = 1
+            config_data['LAST_WALLET_SELECTED'] = "1"
             await Config_CLI.edit_config_file(config_data=config_data)
         
         await Main_CLI.main_menu()
@@ -1819,10 +1839,17 @@ class Main_CLI():
         
         f.display_logo()
         print("Welcome to the Jupiter Python CLI v.0.0.1! Made by @_TaoDev_")
-        print("This is your first login, let's setup the CLI configuration.")
+        print("This is your first login, let's setup the CLI configuration.\n")
         
         # async Config_CLI.prompt_collect_fees() # TBD
-        await Config_CLI.prompt_rpc_url()
+        while True:
+            rpc_url = await Config_CLI.prompt_rpc_url()
+            if rpc_url == "":
+                print(f"{c.RED}This is your first login, please enter a Solana RPC URL Endpoint.{c.RESET}")
+            else:
+                break
+        await Config_CLI.prompt_discord_webhook()
+        await Config_CLI.prompt_telegram_api()
         
         return
         
@@ -1926,6 +1953,5 @@ class Main_CLI():
 
 if __name__ == "__main__":
     print(f"{c.BLUE}STARTING CLI...{c.RESET}")
-    load_dotenv()
     asyncio.run(Token_Sniper.run())
     asyncio.run(Main_CLI.start_CLI())
