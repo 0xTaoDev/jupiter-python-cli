@@ -1,6 +1,8 @@
 <div align="center">
     <h1>📟 JUPITER PYTHON CLI 🪐</h1>
-    # VIDEO
+
+https://github.com/0xTaoDev/jupiter-python-cli/assets/152310566/81f79ed5-8c47-469f-aeb8-c3be70c9541f
+
 </div>
 
 ---
@@ -28,12 +30,16 @@ This tool is provided for educational purposes only and should not be used as fi
 
 ### 🛠️ Installation
 
-Clone this repository.
-Create a virtual environnment.
+**Clone this repository.**<br>
+**Create a virtual environnment.**
 ```sh
 python -m venv env
 ```
-Start CLI
+**Activate Virtual Environnement**
+```sh
+.\venv\Scripts\Activate.ps1
+```
+**Start CLI**
 ```sh
 python main.py
 ```
