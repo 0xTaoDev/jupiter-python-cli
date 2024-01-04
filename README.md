@@ -30,11 +30,11 @@ This tool is provided for educational purposes only and should not be used as fi
 
 ### 🛠️ Installation
 
-💾 **Clone this repository.**
+💾 **Clone this repository**
 ```sh
 git clone https://github.com/0xtaodev/jupiter-python-cli
 ```
-💻 **Create a virtual environnment.**
+💻 **Create a virtual environnment**
 ```sh
 python -m venv env
 ```
@@ -45,4 +45,27 @@ python -m venv env
 ▶️ **Start CLI**
 ```sh
 python main.py
+```
+
+
+### 🚨📃 Known bugs
+# ImportError: sync_native from spl.token.instructions
+1. Go to https://github.com/michaelhly/solana-py/tree/master/src/spl/token and download ```instructions.py```
+2. In your packages folder, replace ```spl/token/instructions.py``` with the one you just downloaded.
+# Sometimes 0.01 is added when typying numbers
+# 
+
+
+# 🤝 Contributions
+If you are interesting in contributing, fork the repository and submit a pull request in order to merge your improvements into the main repository.<br>
+Contact me for any inquiry, I will reach you as soon as possible.<br>
+[![Discord](https://img.shields.io/badge/Discord-%237289DA.svg?logo=discord&logoColor=white)](https://discord.gg/H3QRapcC)
+[![Twitter](https://img.shields.io/badge/Twitter-%231DA1F2.svg?logo=Twitter&logoColor=white)](https://twitter.com/_TaoDev_)
+
+# 👑 Donations
+This project doesn't include platform fees. If you find value in it and would like to support its development, your donations are greatly appreciated.<br>
+You can donate through CLI in About menu.<br>
+**SOLANA ADDRESS**
+```sh
+AyWu89SjZBW1MzkxiREmgtyMKxSkS1zVy8Uo23RyLphX
 ```
