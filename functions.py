@@ -2,12 +2,39 @@ from pyfiglet import Figlet
 import json
 import httpx
 
+def send_discord_alert(message: str):
+    DISCORD_WEBHOOK_URL = get_config_data['DISCORD_WEBHOOK']
+    try:
+        httpx.post(DISCORD_WEBHOOK_URL, json={'content': f'{message}'})
+    except:
+        pass
 
+def send_telegram_alert(message: str):
+    TELEGRAM_API_INFO = get_config_data
+    TELEGRAM_BOT_TOKEN = TELEGRAM_API_INFO['TELEGRAM_BOT_TOKEN']
+    TELEGRAM_CHAT_ID = TELEGRAM_API_INFO['TELEGRAM_CHAT_ID']
+    TELEGRAM_URL = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage"
+    PAYLOAD = {
+        'chat_id': TELEGRAM_CHAT_ID,
+        'text': message,
+        'parse_mode': 'HTML'
+    }
+    try:
+        httpx.post(url=TELEGRAM_URL, data=PAYLOAD)
+    except:
+        pass
+    
 def display_logo() -> None:
     """Display Jupiter CLI logo."""
     print("\033c\n", end="")
     print("-" * 51, "\n" + Figlet(font='small').renderText('JUPITER  CLI\n') + "-" * 51 + "\n")
-    
+
+def get_config_data() -> dict:
+    """Fetch config file data.
+    Returns: dict"""
+    with open('config.json', 'r') as config_file:
+            return json.load(config_file)
+        
 def load_wallets() -> dict:
     """Returns all wallets stored in wallets.json."""
     with open('wallets.json', 'r') as wallets_file:
