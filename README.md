@@ -142,6 +142,7 @@ You can modify token info as follow:
 - [ ] Wallet Duplication detection
 - [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
+- [ ] Adjust Wallets ID when one is deleted
 - [ ] Bridge 🌉
 - [ ] Perpetual 💸
 
