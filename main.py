@@ -1560,7 +1560,7 @@ class Jupiter_CLI(Wallet):
                 amount_token = round(wallet_token_info['balance']['float'], 5)
                 amount_usd = round(out_amount, 2)
                 pnl_usd = round(amount_usd - buy_amount, 2)
-                if pnl_usd > 0:
+                if pnl_usd >= 0:
                     pnl_usd_title = f"{c.GREEN}PnL ${c.RESET}"
                     pnl_usd = f"{c.GREEN}${pnl_usd}{c.RESET}"
                 else:
@@ -1568,7 +1568,7 @@ class Jupiter_CLI(Wallet):
                     pnl_usd = f"{c.RED}${pnl_usd}{c.RESET}"
                     
                 pnl_percentage = round((amount_usd - buy_amount)/buy_amount*100, 2)
-                if pnl_percentage > 0:
+                if pnl_percentage >= 0:
                     pnl_percentage_title = f"{c.GREEN}PnL %{c.RESET}"
                     pnl_percentage = f"{c.GREEN}{pnl_percentage}%{c.RESET}"
                 else:
