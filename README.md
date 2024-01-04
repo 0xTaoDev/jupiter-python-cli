@@ -103,7 +103,7 @@ If token has a launch date:
 
 ### 🔭 Watch token
 You can watch your trading position by selecting the token.<br>
-<img src="https://github.com/0xTaoDev/jupiter-python-cli/blob/main/images/sniper_bot_watch.png?raw=true" width="100%" height="100%">
+<img src="https://github.com/0xTaoDev/jupiter-python-cli/blob/main/images/sniper_bot_watch.png?raw=true" width="50%" height="50%">
 
 ### ✍🏻 Edit tokens
 You can modify token info as follow:

@@ -2,7 +2,4 @@ venv/
 .env
 __pycache__/
 ROADMAP.txt
-wallets.json
-config.json
-tokens.json
 after_effects/
