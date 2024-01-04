@@ -8,14 +8,14 @@ https://github.com/0xTaoDev/jupiter-python-cli/assets/152310566/81f79ed5-8c47-46
 ---
 
 <p align="center">
-    <img src="https://img.shields.io/github/stars/0xtaodev/jupiter-python-clli">
-    <img src="https://img.shields.io/github/forks/0xtaodev/jupiter-python-clli">
+    <img src="https://img.shields.io/github/stars/0xtaodev/jupiter-python-cli">
+    <img src="https://img.shields.io/github/forks/0xtaodev/jupiter-python-cli">
     <br>
-    <img src="https://img.shields.io/github/issues/0xtaodev/jupiter-python-clli">
-    <img src="https://img.shields.io/github/issues-closed/0xtaodev/jupiter-python-clli">
+    <img src="https://img.shields.io/github/issues/0xtaodev/jupiter-python-cli">
+    <img src="https://img.shields.io/github/issues-closed/0xtaodev/jupiter-python-cli">
     <br>
-    <img src="https://img.shields.io/github/languages/top/0xtaodev/jupiter-python-clli">
-    <img src="https://img.shields.io/github/last-commit/0xtaodev/jupiter-python-clli">
+    <img src="https://img.shields.io/github/languages/top/0xtaodev/jupiter-python-cli">
+    <img src="https://img.shields.io/github/last-commit/0xtaodev/jupiter-python-cli">
     <br>
 </p>
 
@@ -30,16 +30,19 @@ This tool is provided for educational purposes only and should not be used as fi
 
 ### 🛠️ Installation
 
-**Clone this repository.**<br>
-**Create a virtual environnment.**
+💾 **Clone this repository.**
+```sh
+git clone https://github.com/0xtaodev/jupiter-python-cli
+```
+💻 **Create a virtual environnment.**
 ```sh
 python -m venv env
 ```
-**Activate Virtual Environnement**
+🌐 **Activate Virtual Environnement**
 ```sh
 .\venv\Scripts\Activate.ps1
 ```
-**Start CLI**
+▶️ **Start CLI**
 ```sh
 python main.py
 ```
