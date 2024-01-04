@@ -47,7 +47,35 @@ python -m venv env
 python main.py
 ```
 
-
+### 🗺️ CLI Overview
+```
+CLI
+│
+├── Jupiter Exchange
+│   ├── Swap
+│   ├── Limit Order
+│   │   ├── Open Limit Order
+│   │   ├── Display Canceled Orders History
+│   │   └── Display Filled Orders History
+│   ├── DCA
+│   │   ├── Open DCA Account
+│   │   └── Manage DCA Accounts
+│   ├── Token Sniper
+│   │   ├── Add a token to snipe
+│   │   ├── Watch token
+│   │   └── Edit tokens
+│   └── Change wallet
+├── Manage Wallets
+│   ├── Add wallet
+│   ├── Edit wallet name
+│   └── Delete wallet(s)
+├── CLI settings
+│   ├── Solana RPC URL Endpoint
+│   ├── Discord
+│   └── Telegram
+├── About
+└── Exit CLI
+```
 # 🚨 Known bugs
 ### ImportError: sync_native from spl.token.instructions
 1. Go to https://github.com/michaelhly/solana-py/tree/master/src/spl/token and download ```instructions.py```
@@ -58,6 +86,7 @@ python main.py
 # 📝 TO-DO
 - [ ] Clean up code ⚡
 - [ ] Display tokens owned 🪙
+- [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
 
 
