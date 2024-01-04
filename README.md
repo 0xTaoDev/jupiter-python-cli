@@ -49,9 +49,9 @@ python main.py
 
 # 🗺️ CLI Overview
 ```
-CLI
+📟 CLI
 │
-├── Jupiter Exchange
+├── 🪐 Jupiter Exchange
 │   ├── Swap
 │   ├── Limit Order
 │   │   ├── Open Limit Order
@@ -65,16 +65,16 @@ CLI
 │   │   ├── Watch token
 │   │   └── Edit tokens
 │   └── Change wallet
-├── Manage Wallets
+├── 💳 Manage Wallets
 │   ├── Add wallet
 │   ├── Edit wallet name
 │   └── Delete wallet(s)
-├── CLI settings
+├── 🔧 CLI settings
 │   ├── Solana RPC URL Endpoint
 │   ├── Discord
 │   └── Telegram
-├── About
-└── Exit CLI
+├── ❓ About
+└── 🔚 Exit CLI
 ```
 
 # 🤖 Sniper Bot
@@ -123,10 +123,12 @@ You can modify token info as follow:
 2. In your packages folder, replace ```spl/token/instructions.py``` with the one you just downloaded.
 ### Sometimes 0.01 is added when typying numbers
 ### Invalid DCA Accounts listed (and cannot be deleted)
+### Discord Webhook or Telegram API not being added in `config.json`
 
 # 📝 TO-DO
 - [ ] Clean up code ⚡
 - [ ] Display tokens owned 🪙
+- [ ] Wallet Duplication detection
 - [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
 
