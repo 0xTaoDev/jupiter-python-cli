@@ -81,6 +81,12 @@ CLI
 **In top of most of the Jupiter features that you can use, you are also able to snipe token.**<br>
 ❗**Please note that Sniper Bot is experimental and subject to change as there might be issues that I didn't see.**
 
+### ⚙️ How it works
+Every second, the bot will send a GET request to [Jupiter API Quote](https://quote-api.jup.ag/v6/quote).<br>
+If there is a route available for this token, it will then execute it.<br>
+Please note that only tokens with sufficient liquidity and on-chain metadata are listed in Jupiter API: min. 250$ liquidty and buy/sell price impact are below 30%.<br>
+When these criteria are met, it will take a few minutes to automatically add the token.<br>
+
 ### 🆕 Add a token to snipe
 - Token/Project name
 - Token Address
@@ -96,11 +102,11 @@ If token has a launch date:
 - Minutes
 
 ### 🔭 Watch token
-You can watch your trading position by selecting the token.
-<img src="https://github.com/0xTaoDev/jupiter-python-cli/blob/main/images/sniper_bot_watch.png?raw=true" width="25%" height="25%">
+You can watch your trading position by selecting the token.<br>
+<img src="https://github.com/0xTaoDev/jupiter-python-cli/blob/main/images/sniper_bot_watch.png?raw=true" width="100%" height="100%">
 
 ### ✍🏻 Edit tokens
-You can modify token info as follows:
+You can modify token info as follow:
 - Name
 - Address
 - Selected Wallet
