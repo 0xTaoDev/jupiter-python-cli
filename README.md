@@ -28,7 +28,7 @@ This tool is provided for educational purposes only and should not be used as fi
 
 # ✨ Quickstart
 
-### 🛠️ Installation
+## 🛠️ Installation
 
 💾 **Clone this repository**
 ```sh
@@ -119,13 +119,13 @@ You can modify token info as follow:
 
 # 🗨️ Q&A
 ### Where are my private keys?
-Your private keys are stored in `wallets.json`.
+*Your private keys are stored in `wallets.json`.*
 ### Is there any fees when swapping using CLI?
-There are no additional fees in the CLI when performing swaps via the CLI; the costs should be the same as using the Jupiter UI.
+*There are no additional fees when performing swaps via the CLI; the costs should be the same as using the Jupiter UI.*
 ### Does sniper bot remains running if I close the CLI?
-If you close the CLI, the sniper bot will stop running.
+*If you close the CLI, the sniper bot will stop running.*
 ### Is it possible to swap any tokens?
-You can only swap tokens that are listed on Jupiter based on their criterias.
+*You can only swap tokens that are listed on Jupiter based on their criterias.*
 
 # 🚨 Known bugs
 ### ImportError: sync_native from spl.token.instructions
@@ -138,6 +138,7 @@ You can only swap tokens that are listed on Jupiter based on their criterias.
 # 📝 TO-DO
 - [ ] Clean up code ⚡
 - [ ] Display tokens owned 🪙
+- [ ] Favorite tokens displayed in first tokens for swap/limit orders/dca... ⭐
 - [ ] Wallet Duplication detection
 - [ ] Display message when swap failed (slippage error...)  
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
