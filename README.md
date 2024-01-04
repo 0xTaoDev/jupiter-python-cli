@@ -134,6 +134,7 @@ You can modify token info as follow:
 ### Sometimes 0.01 is added when typying numbers
 ### Invalid DCA Accounts listed (and cannot be deleted)
 ### Discord Webhook or Telegram API not being added in `config.json`
+### Duplicate menus when resizing the window
 
 # 📝 TO-DO
 - [ ] Clean up code ⚡
