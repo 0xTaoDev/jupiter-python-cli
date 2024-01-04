@@ -48,12 +48,17 @@ python main.py
 ```
 
 
-### 🚨📃 Known bugs
-# ImportError: sync_native from spl.token.instructions
+# 🚨 Known bugs
+### ImportError: sync_native from spl.token.instructions
 1. Go to https://github.com/michaelhly/solana-py/tree/master/src/spl/token and download ```instructions.py```
 2. In your packages folder, replace ```spl/token/instructions.py``` with the one you just downloaded.
-# Sometimes 0.01 is added when typying numbers
-# 
+### Sometimes 0.01 is added when typying numbers
+### Invalid DCA Accounts listed (and cannot be deleted)
+
+# 📝 TO-DO
+- [ ] Clean up code ⚡
+- [ ] Display tokens owned 🪙
+- [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
 
 
 # 🤝 Contributions
