@@ -1827,6 +1827,7 @@ class Main_CLI():
             await Main_CLI.first_login()
             await Wallets_CLI.prompt_add_wallet()
             
+            config_data = await Config_CLI.get_config_data()
             config_data['FIRST_LOGIN'] = False
             config_data['LAST_WALLET_SELECTED'] = "1"
             await Config_CLI.edit_config_file(config_data=config_data)
