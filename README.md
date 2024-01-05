@@ -133,7 +133,7 @@ You can modify token info as follow:
 2. In your packages folder, replace ```spl/token/instructions.py``` with the one you just downloaded.
 ### Sometimes 0.01 is added when typying numbers
 ### Invalid DCA Accounts listed (and cannot be deleted)
-### Discord Webhook or Telegram API not being added in `config.json`
+### ~~Discord Webhook or Telegram API not being added in `config.json`~~
 ### Duplicating menus when resizing the window
 ### Sniper Bot: it's taking 10-20 seconds to get real trade position info after a swap route is found and executed
 
