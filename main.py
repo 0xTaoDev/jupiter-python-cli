@@ -1346,6 +1346,7 @@ class Jupiter_CLI(Wallet):
             
             elif confirm == "No":
                 timestamp = None
+                break
                 
         print(f"SNIPE {token_name} ({token_address}) | BUY: ${amount_usd_to_buy} - STOPLOSS: ${stop_loss_usd} - TAKEPROFIT: ${take_profit_usd} | LAUNCH DATE: {month}-{day}-{year} {hours}:{minutes}")
         confirm = await inquirer.select(message="Confirm token?", choices=["Yes", "No"]).execute_async()
@@ -1456,26 +1457,26 @@ class Jupiter_CLI(Wallet):
                     print(f"{c.GREEN}Token ID {selected_token}: Slippage {slippage_bps}%{c.RESET}")
                 case "Timestamp":
                     while True:
-                            confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
-                            if confirm == "Yes":
-                                year = 2024
-                                month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
-                                day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
-                                print("Enter time in 24-hour format (HH:MM)")
-                                hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
-                                minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
-                                timestamp = int((datetime(2024, int(month), int(day), int(hours), int(minutes)).timestamp()))
-                                
-                                if timestamp < int(time.time()):
-                                    print(f"{c.RED}! Launch date is already passed{c.RESET}")
-                                else:
-                                    confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
-                                    if confirm == "Yes":
-                                        break
+                        confirm = await inquirer.select(message="Does token has a launch date?", choices=["Yes", "No"]).execute_async()
+                        if confirm == "Yes":
+                            year = 2024
+                            month = await inquirer.number(message="Month (1-12):", min_allowed=1, max_allowed=12, default=1).execute_async()
+                            day = await inquirer.number(message="Day (1-31):", min_allowed=1, max_allowed=31, default=1).execute_async()
+                            print("Enter time in 24-hour format (HH:MM)")
+                            hours = await inquirer.number(message="Hours:", min_allowed=0, max_allowed=23, default=1).execute_async()
+                            minutes = await inquirer.number(message="Minutes:", min_allowed=0, max_allowed=59, default=1).execute_async()
+                            timestamp = int((datetime(2024, int(month), int(day), int(hours), int(minutes)).timestamp()))
                             
-                            elif confirm == "No":
-                                timestamp = None
-                                break
+                            if timestamp < int(time.time()):
+                                print(f"{c.RED}! Launch date is already passed{c.RESET}")
+                            else:
+                                confirm = await inquirer.select(message="Confirm launch date?", choices=["Yes", "No"]).execute_async()
+                                if confirm == "Yes":
+                                    break
+                        
+                        elif confirm == "No":
+                            timestamp = None
+                            break
                             
                     tokens_snipe[selected_token]['TIMESTAMP'] = timestamp
                     await Config_CLI.edit_tokens_file(tokens_snipe)
