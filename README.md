@@ -36,7 +36,7 @@ git clone https://github.com/0xtaodev/jupiter-python-cli
 ```
 💻 **Create a virtual environnment**
 ```sh
-python -m venv env
+python -m venv venv
 ```
 🌐 **Activate Virtual Environnement**
 ```sh
