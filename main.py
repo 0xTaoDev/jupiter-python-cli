@@ -1347,8 +1347,12 @@ class Jupiter_CLI(Wallet):
             elif confirm == "No":
                 timestamp = None
                 break
-                
-        print(f"SNIPE {token_name} ({token_address}) | BUY: ${amount_usd_to_buy} - STOPLOSS: ${stop_loss_usd} - TAKEPROFIT: ${take_profit_usd} | LAUNCH DATE: {month}-{day}-{year} {hours}:{minutes}")
+        
+        if timestamp:
+            print(f"SNIPE {token_name} ({token_address}) | BUY: ${amount_usd_to_buy} - STOPLOSS: ${stop_loss_usd} - TAKEPROFIT: ${take_profit_usd} | LAUNCH DATE: {month}-{day}-{year} {hours}:{minutes}")
+        else:
+            print(f"SNIPE {token_name} ({token_address}) | BUY: ${amount_usd_to_buy} - STOPLOSS: ${stop_loss_usd} - TAKEPROFIT: ${take_profit_usd} | NO LAUNCH DATE")
+            
         confirm = await inquirer.select(message="Confirm token?", choices=["Yes", "No"]).execute_async()
         if confirm == "Yes":
             tokens_data = await Config_CLI.get_tokens_data()
