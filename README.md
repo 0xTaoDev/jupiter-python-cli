@@ -143,7 +143,8 @@ You can modify token info as follow:
 - [ ] Display tokens owned 🪙
 - [ ] Favorite tokens displayed in first tokens for swap/limit orders/dca... ⭐
 - [ ] Wallet Duplication detection
-- [ ] Display message when swap failed (slippage error...)  
+- [ ] Display message when swap failed (slippage error...)
+- [ ] Disable swap / limits orders / etc, if not enough $SOL to cover the tx fees
 - [ ] Give possibility to exit current choice (swap, limit order, dca, donation...) 🏃🚪
 - [ ] Adjust Wallets ID when one is deleted
 - [ ] Bridge 🌉
