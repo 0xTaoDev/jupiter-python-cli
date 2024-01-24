@@ -28,6 +28,8 @@ This tool is provided for educational purposes only and should not be used as fi
 
 # ✨ Quickstart
 
+This project has been made for Python 3.11
+
 ## 🛠️ Installation
 
 💾 **Clone this repository**
