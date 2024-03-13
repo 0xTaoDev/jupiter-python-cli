@@ -1,6 +1,10 @@
-from pyfiglet import Figlet
 import json
+import logging
+
 import httpx
+from pyfiglet import Figlet
+
+log = logging.getLogger("alert service")
 
 
 def send_discord_alert(message: str):
@@ -25,8 +29,8 @@ def send_telegram_alert(message: str):
 
 def display_logo() -> None:
     """Display Jupiter CLI logo."""
-    print("\033c\n", end="")
-    print(
+    log.info("\033c\n")
+    log.info(
         "-" * 51,
         "\n" + Figlet(font="small").renderText("JUPITER  CLI\n") + "-" * 51 + "\n",
     )

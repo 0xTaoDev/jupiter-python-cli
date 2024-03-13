@@ -1,0 +1,23 @@
+repos:
+- repo: https://github.com/rcmdnk/pyproject-pre-commit
+  rev: v0.1.5
+  hooks:
+  - id: black-diff
+  - id: black
+  # - id: blacken-docs
+  - id: autoflake-diff
+  - id: autoflake
+  # - id: autopep8-diff
+  # - id: autopep8
+  - id: isort-diff
+  - id: isort
+  - id: flake8
+  # - id: bandit
+  # - id: mypy
+  # - id: numpydoc-validation
+  - id: shellcheck
+  - id: mdformat-check
+  - id: mdformat
+
+ci:
+  autoupdate_schedule: quarterly

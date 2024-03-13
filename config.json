@@ -1,5 +1,5 @@
 {
-    "FIRST_LOGIN": true,
+    "FIRST_LOGIN": false,
     "LAST_WALLET_SELECTED": "1",
     "COLLECT_FEES": false,
     "RPC_URL": "",

@@ -12,11 +12,82 @@ jupiter-python-sdk = "^0.0.2.0"
 pyfiglet = "^1.0.2"
 tabulate = "^0.9.0"
 yaspin = "^3.0.1"
-mypy = "^1.9.0"
 pandas = "^2.2.1"
 colorama = "^0.4.6"
 
 
+[tool.poetry.group.dev.dependencies]
+polylith-cli = "^1.4.1"
+black = "^24.2.0"
+isort = "^5.13.2"
+mypy = "^1.9.0"
+pyproject-flake8 = "^6.1.0"
+flake8 = "^6.1.0"
+pre-commit = "^3.6.2"
+pyproject-pre-commit = "^0.1.6"
+
+
+[tool.autoflake]
+remove-all-unused-imports = true
+expand-star-imports = true
+remove-unused-variables = true
+remove-duplicate-keys = true
+
+[tool.autopep8]
+ignore = "E203,E501,W503"
+recursive = true
+in-place = true
+aggresive = 3
+exclude = "tests/*, ./dist, ./.venv, .mypy_cache, __pycache__,.github,.git,*OLD*"
+
+[tool.isort]
+profile = "black"
+py_version = 39
+line_length = 120
+length_sort = true
+skip = [".gitignore", ".dockerignore"]
+
+[tool.flake8]
+max-line-length = 120
+exclude = [
+  "*OLD*",
+  # "./test/*",
+  ".git",
+  ".github",
+  "__pycache__",
+  ".mypy_cache",
+  "dist",
+  ".venv",
+
+]
+ignore = "B018,B007,C901,E203,E501,W503,D100,D102,D103,D104,D105,D106,D209,D401,E704,B008,D101,A002,A001,A003,N806,N811,D400,D107,D400,N818,N801,N802,N804,B001,B030,N813,E402,B026,N803,TAE002,S001,RST301,RST201,RST203,D403,D202,D205,E722,D301,"
+max-complexity = 10
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+
+[tool.bandit]
+targets = "."
+exclude = "tests"
+
+[tool.mypy]
+files = "*.py"
+namespace_packages = true
+explicit_package_bases = true
+
+[tool.pylint]
+disable = [
+  "C0114", # missing-module-docstring
+  "C0115", # missing-class-docstring
+  "C0116", # missing-function-docstring
+
+]
+max-line-length = 120
+ignore = ["tests/"]
+
+[tool.pylint.messages_control]
+max-line-length = 120
