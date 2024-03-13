@@ -3,3 +3,4 @@ venv/
 __pycache__/
 ROADMAP.txt
 after_effects/
+.direnv/
