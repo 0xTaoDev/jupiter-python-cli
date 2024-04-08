@@ -280,7 +280,13 @@ class Wallet():
                     }
                 }
             except AttributeError:
-                token_balance = {'balance': {'int': 0, 'float':0}}
+                token_balance = {
+                    'decimals': 0,
+                    'balance': {
+                        'int': 0,
+                        'float':0
+                    }
+                }
         
         return token_balance
     
